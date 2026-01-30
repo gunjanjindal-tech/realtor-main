@@ -88,10 +88,14 @@ export default function Communities() {
               </p>
 
               <div className="relative mt-6 inline-flex items-center text-sm font-semibold text-red-600">
-                View Homes
-                <span className="ml-1 inline-block transition-transform duration-300 group-hover:translate-x-2">
-                  →
-                </span>
+             <a
+  href={`/buy/${community.name.toLowerCase().replace(/\s+/g, "-")}`}
+  className="mt-6 inline-flex items-center text-sm font-semibold text-red-600"
+>
+  View Homes →
+</a>
+
+
               </div>
             </div>
           ))}

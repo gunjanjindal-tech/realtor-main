@@ -23,15 +23,25 @@ export default function ContactCard() {
 
       {/* DETAILS */}
       <div className="space-y-4 text-[15px] text-gray-800">
-        <div className="flex items-center gap-3">
-          <Phone size={18} className="text-[#091D35]" />
-          <span>902-399-5007</span>
-        </div>
+     <div className="flex items-center gap-3">
+  <Phone size={18} className="text-[#091D35]" />
+  <a
+    href="tel:+19023995007"
+    className="hover:underline"
+  >
+    902-399-5007
+  </a>
+</div>
 
-        <div className="flex items-center gap-3">
-          <Mail size={18} className="text-[#091D35]" />
-          <span>info@therealtor.ca</span>
-        </div>
+<div className="flex items-center gap-3">
+  <Mail size={18} className="text-[#091D35]" />
+  <a
+    href="mailto:akshay@remaxnova.ca"
+    className="hover:underline"
+  >
+    akshay@remaxnova.ca
+  </a>
+</div>
 
         <div className="flex items-center gap-3">
           <MapPin size={18} className="text-[#091D35]" />
@@ -75,8 +85,9 @@ export default function ContactCard() {
       {/* BUTTONS */}
       <div className="pt-6 flex flex-wrap gap-4">
         <a
-          href="https://calendly.com/"
+          href="https://akshay42hj.setmore.com"
           target="_blank"
+           rel="noopener noreferrer"
           className="rounded-full bg-red-600 px-8 py-4 text-sm font-semibold text-white hover:bg-red-700 transition"
         >
           Schedule a Meeting

@@ -13,9 +13,9 @@ export default function Home() {
     <>
       <Hero />
       <FeaturedProperties />
-      <Regions/>
+        <FeaturedShowcase />
       <Communities />
-      <FeaturedShowcase />
+    
       <WhyNovaScotia />
       <LocalMarketMap />
       <PremiumBuyerCTA />

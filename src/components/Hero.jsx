@@ -22,7 +22,7 @@ export default function Hero() {
         <div className="animate-slide-right-luxury relative">
 
           {/* Blue glass outline */}
-          <div className="absolute -inset-4 rounded-3xl border border-blue-300/25 bg-white/5 backdrop-blur-2xl" />
+          <div className="absolute -inset-4 rounded-3xl   backdrop-blur-2xl" />
 
           <h1 className="relative text-5xl md:text-6xl font-bold leading-tight tracking-tight drop-shadow-[0_10px_40px_rgba(0,0,0,0.7)]">
             Make Your Move to Nova Scotia
