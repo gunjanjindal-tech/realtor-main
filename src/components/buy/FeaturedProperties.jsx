@@ -104,7 +104,7 @@ export default function FeaturedProperties({ city }) {
                 key={pageNumber}
                 onClick={() => {
                   setPage(pageNumber);
-                  scrollToTop(); // ✅ ONLY HERE
+                  scrollToTop(); 
                 }}
                 className={`h-12 w-12 rounded-full font-medium ${
                   page === pageNumber

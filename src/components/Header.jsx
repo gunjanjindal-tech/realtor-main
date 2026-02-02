@@ -28,8 +28,8 @@ export default function Header() {
         <div className="mx-auto flex h-20 max-w-[1800px] items-center justify-between px-4 sm:px-6 xl:px-10 text-white">
 
           {/* LOGO */}
-          <Link href="/" className="text-xl md:text-2xl font-extrabold tracking-wide">
-            THE<span className="text-red-500">REALTOR</span>
+          <Link href="/" className="text-xl md:text-2xl text-red-500 font-extrabold tracking-wide">
+           BANSAL .
           </Link>
 
           {/* NAV – Desktop Only */}

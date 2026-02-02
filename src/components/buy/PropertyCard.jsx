@@ -12,6 +12,12 @@ const pricePerSqFt =
   sqft && listing.ListPrice
     ? Math.round(listing.ListPrice / sqft)
     : null;
+  
+  const province =
+  listing.StateOrProvince ||
+  listing.ProvinceOrState ||
+  "NS";
+
 
 <script
   type="application/ld+json"
@@ -75,8 +81,9 @@ const pricePerSqFt =
         </h3>
 
         <p className="text-sm text-gray-600 mt-1">
-          {listing.City}, {listing.Province}
-        </p>
+  {listing.City}, {province}
+</p>
+
 
         {/* META */}
         <div className="mt-4 flex flex-wrap gap-4 text-sm text-gray-500">
