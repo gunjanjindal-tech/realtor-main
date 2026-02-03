@@ -50,7 +50,7 @@ export default function FeaturedProperties({ city }) {
   const endPage = Math.min(totalPages, startPage + maxButtons - 1);
 
   return (
-    <section ref={topRef} className="bg-white py-24">
+    <section ref={topRef} className="bg-white py-16">
       <div className="max-w-[1600px] mx-auto px-6">
         {/* HEADER */}
        <div className="mb-14">

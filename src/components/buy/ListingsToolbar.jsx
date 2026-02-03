@@ -4,36 +4,29 @@ import { Search, SlidersHorizontal } from "lucide-react";
 
 export default function ListingsToolbar({ onOpenFilters }) {
   return (
-    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-8">
-      
-      
+    <div className="w-full lg:w-auto">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 rounded-2xl bg-white/80 backdrop-blur px-4 sm:px-6 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.05)]">
 
-      {/* CONTROLS */}
-      <div className="flex items-center gap-3 w-full lg:w-auto">
-        
         {/* SEARCH */}
-        <div className="relative flex-1 lg:w-[280px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+        <div className="flex items-center gap-3 rounded-full bg-gray-100 px-4 py-2 w-full sm:w-auto">
+          <Search size={16} className="text-gray-500" />
           <input
-            placeholder="Search properties"
-            className="w-full rounded-full border pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#091D35]"
+            placeholder="Search homes"
+            className="w-full sm:w-48 bg-transparent text-sm text-[#091D35] outline-none placeholder-gray-500"
           />
         </div>
 
-        {/* BUY / RENT */}
-        <div className="hidden lg:flex rounded-full border overflow-hidden">
-          <button className="px-4 py-2 text-sm bg-[#091D35] text-white">
-            Buy
-          </button>
-         
-        </div>
+        {/* MODE */}
+        <span className="hidden sm:inline text-sm font-semibold tracking-wide text-[#091D35] px-2">
+          BUY
+        </span>
 
-        {/* FILTER BUTTON (mobile + desktop optional) */}
+        {/* FILTER CTA */}
         <button
           onClick={onOpenFilters}
-          className="flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium"
+          className="inline-flex items-center justify-center gap-2 rounded-full bg-[#091D35] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0c2746] transition shadow-md w-full sm:w-auto"
         >
-          <SlidersHorizontal size={16} />
+          <SlidersHorizontal size={14} />
           Filters
         </button>
       </div>

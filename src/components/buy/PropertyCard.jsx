@@ -3,56 +3,34 @@ import Link from "next/link";
 export default function PropertyCard({ listing }) {
   const image = listing.Image || "/images/placeholder.jpg";
 
-const sqft =
-  listing.BuildingAreaTotal ||
-  listing.LivingArea ||
-  listing.AboveGradeFinishedArea;
+  const sqft =
+    listing.BuildingAreaTotal ||
+    listing.LivingArea ||
+    listing.AboveGradeFinishedArea;
 
-const pricePerSqFt =
-  sqft && listing.ListPrice
-    ? Math.round(listing.ListPrice / sqft)
-    : null;
-  
+  const pricePerSqFt =
+    sqft && listing.ListPrice
+      ? Math.round(listing.ListPrice / sqft)
+      : null;
+
   const province =
-  listing.StateOrProvince ||
-  listing.ProvinceOrState ||
-  "NS";
+    listing.StateOrProvince ||
+    listing.ProvinceOrState ||
+    "NS";
 
+  // 🔑 CITY SLUG (IMPORTANT)
+  const citySlug = encodeURIComponent(
+    (listing.City || "nova-scotia")
+      .toLowerCase()
+      .replace(/\s+/g, "-")
+  );
 
-<script
-  type="application/ld+json"
-  dangerouslySetInnerHTML={{
-    __html: JSON.stringify({
-      "@context": "https://schema.org",
-      "@type": "Residence",
-      name: listing.UnparsedAddress,
-      address: {
-        "@type": "PostalAddress",
-        addressLocality: listing.City,
-        addressRegion: listing.Province,
-        addressCountry: "CA",
-      },
-      floorSize: sqft
-        ? {
-            "@type": "QuantitativeValue",
-            value: sqft,
-            unitCode: "FTK",
-          }
-        : undefined,
-      offers: {
-        "@type": "Offer",
-        price: listing.ListPrice,
-        priceCurrency: "CAD",
-        availability: "https://schema.org/InStock",
-      },
-    }),
-  }}
-/>
+  const listingId = listing.ListingId;
 
   return (
     <Link
-      href={`/buy/${listing.ListingId}`}
-      className="group rounded-2xl overflow-hidden bg-white border hover:shadow-2xl transition"
+      href={`/buy/${citySlug}/${listingId}`}
+      className="group rounded-2xl overflow-hidden bg-white border hover:shadow-2xl transition block"
     >
       {/* IMAGE */}
       <div className="relative aspect-[4/3] overflow-hidden bg-gray-100">
@@ -70,38 +48,25 @@ const pricePerSqFt =
 
       {/* CONTENT */}
       <div className="p-6">
-        {/* PRICE */}
         <p className="text-red-600 font-semibold text-lg">
           ${Number(listing.ListPrice).toLocaleString()}
         </p>
 
-        {/* ADDRESS */}
         <h3 className="mt-1 font-semibold text-[#091D35] line-clamp-2">
           {listing.UnparsedAddress}
         </h3>
 
         <p className="text-sm text-gray-600 mt-1">
-  {listing.City}, {province}
-</p>
+          {listing.City}, {province}
+        </p>
 
-
-        {/* META */}
         <div className="mt-4 flex flex-wrap gap-4 text-sm text-gray-500">
-          {listing.BedroomsTotal && (
-            <span>{listing.BedroomsTotal} Beds</span>
-          )}
-
+          {listing.BedroomsTotal && <span>{listing.BedroomsTotal} Beds</span>}
           {listing.BathroomsTotalInteger && (
             <span>{listing.BathroomsTotalInteger} Baths</span>
           )}
-
-          {sqft && (
-            <span>{Number(sqft).toLocaleString()} sq ft</span>
-          )}
-          {pricePerSqFt && (
-  <span>${pricePerSqFt}/sq ft</span>
-)}
-
+          {sqft && <span>{Number(sqft).toLocaleString()} sq ft</span>}
+          {pricePerSqFt && <span>${pricePerSqFt}/sq ft</span>}
         </div>
       </div>
     </Link>

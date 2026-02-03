@@ -20,26 +20,51 @@ export default function CityBuyPage({ params }) {
       <BuyCityHero city={city} />
 
       {/* BREADCRUMBS */}
-      <section className="bg-white">
+      <section className="bg-white px-6">
         <div className="max-w-[1600px] mx-auto px-6 pt-6">
           <Breadcrumbs city={city} />
         </div>
       </section>
 
-      {/* LISTINGS */}
-      <section className="bg-white py-12">
-        <div className="max-w-[1600px] mx-auto px-6">
-          
-          {/* HEADING + TOOLBAR (SAME ROW) */}
-         <div className="flex justify-end mb-10">
+     {/* LISTINGS */}
+<section className="bg-white py-12">
+  <div className="max-w-[1600px] mx-auto px-6 ">
+
+    {/* HEADER ROW */}
+<div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8 px-6 bg-gray-50 py-6 rounded-lg mb-10">
+
+  {/* LEFT */}
+  <div className="max-w-2xl">
+    <h2 className="text-3xl md:text-4xl font-extrabold text-[#091D35] leading-tight">
+      Homes for Sale in {city}
+    </h2>
+
+    <div className="mt-3 h-[3px] w-24 bg-red-600 rounded-full" />
+
+    <p className="mt-4 text-sm md:text-base text-gray-700">
+      Verified MLS listings, local market insight, and expert guidance — all in one place.
+    </p>
+
+    <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm text-red-600">
+      <span>• Verified listings</span>
+      <span>• Local market expertise</span>
+      <span>• No pressure buying</span>
+    </div>
+  </div>
+
+  {/* RIGHT */}
   <ListingsToolbar onOpenFilters={() => setFiltersOpen(true)} />
 </div>
 
 
-          {/* GRID ONLY (NO HEADING INSIDE) */}
-          <FeaturedProperties city={city} />
-        </div>
-      </section>
+
+
+
+    {/* GRID */}
+    <FeaturedProperties city={city} />
+  </div>
+</section>
+
 
       {/* MOBILE FILTER SLIDE-IN */}
       <MobileFilters
