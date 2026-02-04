@@ -7,6 +7,7 @@ import LocalMarketMap from "@/components/LocalMarketMap";
 import FeaturedShowcase from "@/components/FeaturedShowcase";
 import PremiumBuyerCTA from "@/components/PremiumBuyerCTA.jsx";
 import AgentTrust from "@/components/AgentTrust";
+import BuyerTrustCTA from "@/components/BuyerTrustCTA";
 
 export default function Home() {
   return (
@@ -19,7 +20,8 @@ export default function Home() {
       <WhyNovaScotia />
       <LocalMarketMap />
       <PremiumBuyerCTA />
-      <AgentTrust/>
+      <AgentTrust />
+      <BuyerTrustCTA/>
     </>
   );
 }

@@ -1,7 +1,7 @@
 export default function LocalMarketMap() {
   return (
     <section className="bg-white py-32">
-      <div className="mx-auto max-w-7xl px-6 grid gap-16 lg:grid-cols-2 items-center">
+      <div className="mx-auto max-w-[1600px] px-6 grid gap-16 lg:grid-cols-2 items-center">
 
         {/* LEFT CONTENT */}
         <div>

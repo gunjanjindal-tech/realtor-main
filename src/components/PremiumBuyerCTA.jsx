@@ -29,7 +29,7 @@ export default function PremiumBuyerCTA() {
       {/* subtle background accent */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(255,255,255,0.06),transparent_40%)]" />
 
-      <div className="relative mx-auto max-w-7xl px-6">
+      <div className="relative mx-auto max-w-[1600px] px-6">
         <div className="grid items-center gap-20 lg:grid-cols-2">
 
           {/* LEFT – STATEMENT */}

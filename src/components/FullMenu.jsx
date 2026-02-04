@@ -99,7 +99,11 @@ export default function FullMenu({ close }) {
               {/* LEFT IMAGE */}
               <div className="hidden lg:flex items-center justify-center">
                 <div className="h-[420px] w-[320px] rounded-2xl bg-white/10 flex items-center justify-center text-white/40 text-sm">
-                  Realtor Image Here
+                   <img
+                  src="/images/founder.png"
+                  alt="Akshay Bansal - Realtor"
+                  className="h-full w-full object-contain"
+                />
                 </div>
               </div>
 

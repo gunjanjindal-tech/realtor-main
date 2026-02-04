@@ -30,7 +30,7 @@ const showcaseItems = [
 export default function FeaturedShowcase() {
   return (
     <section className="bg-[#0B1F3B] py-24">
-      <div className="mx-auto max-w-7xl px-6">
+      <div className="mx-auto max-w-[1600px] px-6">
 
         {/* Heading */}
         <div className="mb-14 max-w-3xl">

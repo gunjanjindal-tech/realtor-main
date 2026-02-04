@@ -20,9 +20,13 @@
 
 "use client";
 
+import AgentTrust from "@/components/AgentTrust";
 import BuyHero from "@/components/buy/BuyHero";
 import BuyRegions from "@/components/buy/BuyRegions";
 import FeaturedProperties from "@/components/buy/FeaturedProperties";
+import BuyerTrustCTA from "@/components/BuyerTrustCTA";
+import PremiumBuyerCTA from "@/components/PremiumBuyerCTA";
+import WhyNovaScotia from "@/components/WhyNovaScotia";
 import { useRouter } from "next/navigation";
 
 export default function BuyPage() {
@@ -39,6 +43,13 @@ export default function BuyPage() {
       />
 
       <FeaturedProperties />
+      
+
+      <AgentTrust />
+      <PremiumBuyerCTA />
+      <WhyNovaScotia />
+   <BuyerTrustCTA/>
+      
     </>
   );
 }

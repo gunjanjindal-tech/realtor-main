@@ -3,7 +3,7 @@ import Link from "next/link";
 export default function AgentTrust() {
   return (
     <section className="bg-white py-28">
-      <div className="mx-auto max-w-7xl px-6 grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+      <div className="mx-auto max-w-[1600px] px-6 grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
 
         {/* LEFT CONTENT */}
         <div>

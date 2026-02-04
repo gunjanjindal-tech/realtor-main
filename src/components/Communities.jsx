@@ -48,7 +48,7 @@ export default function Communities() {
 
   return (
     <section className="bg-white py-24">
-      <div className="mx-auto max-w-7xl px-6">
+      <div className="mx-auto max-w-[1600px] px-6">
 
         {/* Heading */}
         <div className="mb-16 max-w-3xl">

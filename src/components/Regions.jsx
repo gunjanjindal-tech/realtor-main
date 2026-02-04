@@ -60,7 +60,7 @@ export default function Regions() {
       <div className="absolute inset-0 bg-gradient-to-r from-white via-white/90 to-white/70" />
 
       {/* CONTENT */}
-      <div className="relative mx-auto grid max-w-7xl grid-cols-1 gap-16 px-6 lg:grid-cols-2">
+      <div className="relative mx-auto grid max-w-[1600px] grid-cols-1 gap-16 px-6 lg:grid-cols-2">
 
         {/* LEFT CONTENT */}
         <div>
