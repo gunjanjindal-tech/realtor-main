@@ -27,11 +27,11 @@ export async function GET(req) {
   // Try Listings first, fallback to Properties if needed
   // Use OData syntax: $top, $skip, $filter
   // Note: $expand=Media is not supported, will fetch media separately if needed
-  // OData standard response uses 'value' array, not 'bundle'
+  // OData standard response uses 'value' array
   let endpoint = `/${DATASET_ID}/Listings?$top=${limit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}`;
 
   try {
-    console.log("🔍 Fetching from endpoint:", endpoint);
+    console.log("🔍 [SELL] Fetching from endpoint:", endpoint);
     let data;
     
     try {
@@ -39,14 +39,14 @@ export async function GET(req) {
     } catch (listingsError) {
       // If Listings fails with 404, try Properties endpoint
       if (listingsError.message.includes("404") || listingsError.message.includes("Invalid resource")) {
-        console.log("⚠️ Listings endpoint failed, trying Properties...");
+        console.log("⚠️ [SELL] Listings endpoint failed, trying Properties...");
         endpoint = `/${DATASET_ID}/Properties?$top=${limit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}`;
         data = await bridgeFetch(endpoint);
       } else {
         throw listingsError;
       }
     }
-    console.log("✅ API Response received:", {
+    console.log("✅ [SELL] API Response received:", {
       hasValue: !!data.value,
       hasBundle: !!data.bundle,
       valueLength: data.value?.length || 0,
@@ -88,17 +88,13 @@ export async function GET(req) {
     return Response.json({
       listings,
       total,
-      rawData: process.env.NODE_ENV === "development" ? { 
-        responseKeys: Object.keys(data),
-        sampleItem: data.value?.[0] || data.bundle?.[0] || null 
-      } : undefined,
     });
   } catch (err) {
     const errorMessage = err.message || "Failed to fetch listings";
     const is404 = errorMessage.includes("404") || errorMessage.includes("Invalid resource");
     const isAuthError = errorMessage.includes("401") || errorMessage.includes("403");
     
-    console.error("❌ Buy API Route Error:", {
+    console.error("❌ Sell API Route Error:", {
       message: errorMessage,
       status: is404 ? 404 : isAuthError ? 401 : 500,
       endpoint: endpoint,
@@ -127,3 +123,4 @@ export async function GET(req) {
     );
   }
 }
+

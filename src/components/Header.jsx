@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Search } from "lucide-react";
 import FullMenu from "./FullMenu";
 
 export default function Header() {
+  const router = useRouter();
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
@@ -52,14 +55,31 @@ export default function Header() {
             </a>
 
             {/* SEARCH – Tablet+ */}
-            <div className="hidden md:flex items-center gap-3 rounded-full bg-white px-4 py-2 text-sm text-black">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (searchQuery.trim()) {
+                  router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+                }
+              }}
+              className="hidden md:flex items-center gap-3 rounded-full bg-white px-4 py-2 text-sm text-black"
+            >
               <span className="font-medium text-gray-500">NS</span>
               <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search residences"
                 className="w-40 bg-transparent outline-none placeholder:text-gray-500"
               />
-              <Search size={16} className="text-gray-500" />
-            </div>
+              <button
+                type="submit"
+                className="cursor-pointer hover:opacity-70 transition"
+                aria-label="Search"
+              >
+                <Search size={16} className="text-gray-500" />
+              </button>
+            </form>
 
             {/* CTA – Desktop Only */}
            <a

@@ -1,4 +1,19 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+
 export default function Hero() {
+  const router = useRouter();
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  };
+
   return (
     <section className="relative h-screen overflow-hidden">
 
@@ -35,16 +50,24 @@ export default function Hero() {
         </p>
 
         {/* Search */}
-        <div className="animate-fade-up-luxury delay-400 mt-14 flex w-full max-w-3xl overflow-hidden rounded-full bg-white/90 backdrop-blur-2xl shadow-2xl">
+        <form
+          onSubmit={handleSearch}
+          className="animate-fade-up-luxury delay-400 mt-14 flex w-full max-w-3xl overflow-hidden rounded-full bg-white/90 backdrop-blur-2xl shadow-2xl"
+        >
           <input
             type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search homes by city, address, or MLS® number"
             className="flex-1 bg-transparent px-6 py-4 text-black outline-none placeholder:text-gray-500"
           />
-          <button className="bg-[#091D35] px-10 text-white font-semibold transition hover:bg-[#0c2a4d]">
+          <button
+            type="submit"
+            className="bg-[#091D35] px-10 text-white font-semibold transition hover:bg-[#0c2a4d]"
+          >
             Search
           </button>
-        </div>
+        </form>
 
       </div>
     </section>

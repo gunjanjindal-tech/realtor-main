@@ -5,33 +5,35 @@ export async function GET(req) {
   const { searchParams } = new URL(req.url);
 
   const page = Number(searchParams.get("page") || 1);
-  const limit = Number(searchParams.get("limit") || 9);
-  const city = searchParams.get("city");
+  const limit = Number(searchParams.get("limit") || 12);
+  const query = searchParams.get("q") || searchParams.get("query") || "";
+
+  if (!query || query.trim().length === 0) {
+    return Response.json({
+      listings: [],
+      total: 0,
+      error: "Search query is required",
+    }, { status: 400 });
+  }
 
   const skip = (page - 1) * limit;
 
-  // Build OData $filter query
-  // Using 'eq' for exact matches (more efficient) and 'contains' for partial matches
+  // Build OData $filter query for search
+  // Search in multiple fields: City, UnparsedAddress, ListingId, etc.
+  const searchTerm = query.trim().replace(/'/g, "''");
   const filterParts = [
     "PropertyType eq 'Residential'",
-    "StandardStatus eq 'Active'"
+    "StandardStatus eq 'Active'",
+    `(contains(City,'${searchTerm}') or contains(UnparsedAddress,'${searchTerm}') or contains(ListingId,'${searchTerm}') or contains(PostalCode,'${searchTerm}'))`
   ];
-
-  if (city) {
-    // Use 'eq' for exact city match, or 'contains' for partial match
-    filterParts.push(`City eq '${city.replace(/'/g, "''")}'`);
-  }
 
   const filterQuery = filterParts.join(" and ");
   
   // Try Listings first, fallback to Properties if needed
-  // Use OData syntax: $top, $skip, $filter
-  // Note: $expand=Media is not supported, will fetch media separately if needed
-  // OData standard response uses 'value' array, not 'bundle'
   let endpoint = `/${DATASET_ID}/Listings?$top=${limit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}`;
 
   try {
-    console.log("🔍 Fetching from endpoint:", endpoint);
+    console.log("🔍 [SEARCH] Fetching from endpoint:", endpoint);
     let data;
     
     try {
@@ -39,24 +41,23 @@ export async function GET(req) {
     } catch (listingsError) {
       // If Listings fails with 404, try Properties endpoint
       if (listingsError.message.includes("404") || listingsError.message.includes("Invalid resource")) {
-        console.log("⚠️ Listings endpoint failed, trying Properties...");
+        console.log("⚠️ [SEARCH] Listings endpoint failed, trying Properties...");
         endpoint = `/${DATASET_ID}/Properties?$top=${limit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}`;
         data = await bridgeFetch(endpoint);
       } else {
         throw listingsError;
       }
     }
-    console.log("✅ API Response received:", {
+
+    console.log("✅ [SEARCH] API Response received:", {
       hasValue: !!data.value,
       hasBundle: !!data.bundle,
       valueLength: data.value?.length || 0,
       bundleLength: data.bundle?.length || 0,
       odataCount: data["@odata.count"],
-      keys: Object.keys(data),
     });
 
     // OData standard uses 'value' array, but some APIs use 'bundle'
-    // 🔥 SANITIZE RESPONSE (VERY IMPORTANT)
     const listings = (data.value || data.bundle || []).map((item) => ({
       ListingId: item.ListingId,
       Id: item.Id,
@@ -65,6 +66,7 @@ export async function GET(req) {
       City: item.City,
       Province: item.Province,
       UnparsedAddress: item.UnparsedAddress,
+      PostalCode: item.PostalCode,
 
       BedroomsTotal: item.BedroomsTotal,
       BathroomsTotalInteger: item.BathroomsTotalInteger,
@@ -73,7 +75,7 @@ export async function GET(req) {
       BuildingAreaTotal: item.BuildingAreaTotal,
       LivingArea: item.LivingArea,
 
-      // Image - Media might be in different fields or need separate API call
+      // Image
       Image:
         item.Media?.[0]?.MediaURL ||
         item.Media?.[0]?.MediaURLThumb ||
@@ -88,22 +90,19 @@ export async function GET(req) {
     return Response.json({
       listings,
       total,
-      rawData: process.env.NODE_ENV === "development" ? { 
-        responseKeys: Object.keys(data),
-        sampleItem: data.value?.[0] || data.bundle?.[0] || null 
-      } : undefined,
+      query: query.trim(),
     });
   } catch (err) {
-    const errorMessage = err.message || "Failed to fetch listings";
+    const errorMessage = err.message || "Failed to search listings";
     const is404 = errorMessage.includes("404") || errorMessage.includes("Invalid resource");
     const isAuthError = errorMessage.includes("401") || errorMessage.includes("403");
     
-    console.error("❌ Buy API Route Error:", {
+    console.error("❌ Search API Route Error:", {
       message: errorMessage,
       status: is404 ? 404 : isAuthError ? 401 : 500,
       endpoint: endpoint,
+      query: query,
       datasetId: DATASET_ID,
-      stack: process.env.NODE_ENV === "development" ? err.stack : undefined,
     });
     
     // Always return JSON, even on error
@@ -112,11 +111,7 @@ export async function GET(req) {
         error: errorMessage,
         listings: [],
         total: 0,
-        debug: process.env.NODE_ENV === "development" ? {
-          endpoint,
-          datasetId: DATASET_ID,
-          suggestion: is404 ? "Check if dataset ID or endpoint name is correct. Try /api/bridge/test to verify." : undefined
-        } : undefined
+        query: query.trim(),
       }, 
       { 
         status: is404 ? 404 : isAuthError ? 401 : 500,
@@ -127,3 +122,4 @@ export async function GET(req) {
     );
   }
 }
+

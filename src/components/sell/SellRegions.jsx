@@ -16,28 +16,18 @@ const REGIONS = [
   { city: "Bridgewater", image: "https://images.unsplash.com/photo-1501183638710-841dd1904471?q=80&w=1600&auto=format&fit=crop" },
   { city: "Yarmouth", image: "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?q=80&w=1600&auto=format&fit=crop" },
   { city: "Antigonish", image:  "https://images.unsplash.com/photo-1501594907352-04cda38ebc29?q=80&w=1600&auto=format&fit=crop" },
-  // { city: "Sydney", image: "https://images.unsplash.com/photo-1600585153912-1b1c87d0ed6c?w=1600&q=80" },
 ];
 
-export default function BuyRegions() {
+export default function SellRegions() {
   const router = useRouter();
   const [activeBg, setActiveBg] = useState("");
   const [counts, setCounts] = useState({});
 
   useEffect(() => {
     fetch("/api/bridge/regions")
-      .then((res) => {
-        if (!res.ok) {
-          console.warn("Failed to fetch region counts, using empty object");
-          return {};
-        }
-        return res.json();
-      })
+      .then((res) => res.json())
       .then(setCounts)
-      .catch((err) => {
-        console.error("Error fetching region counts:", err);
-        setCounts({});
-      });
+      .catch(console.error);
   }, []);
 
   return (
@@ -66,7 +56,7 @@ export default function BuyRegions() {
           <div className="mt-4 h-[3px] w-20 bg-red-600" />
 
           <p className="mt-6 text-lg text-gray-600 max-w-md">
-            Discover homes across Nova Scotia’s most desirable communities.
+            List your property in Nova Scotia's most desirable communities.
           </p>
         </div>
 
@@ -77,7 +67,7 @@ export default function BuyRegions() {
               key={region.city}
               onMouseEnter={() => setActiveBg(region.image)}
               onMouseLeave={() => setActiveBg("")}
-              onClick={() => router.push(`/buy?city=${region.city}`)}
+              onClick={() => router.push(`/sell?city=${region.city}`)}
               className="group rounded-xl bg-white px-6 py-6 border border-gray-200 hover:bg-[#091D35] transition text-left"
             >
               <div className="flex justify-between items-center">
@@ -88,7 +78,7 @@ export default function BuyRegions() {
               </div>
 
               <p className="mt-2 text-sm text-red-600 group-hover:text-white/70">
-                {counts[region.city] } View Homes
+                {counts[region.city] || 0} Listings
               </p>
             </button>
           ))}
@@ -97,3 +87,4 @@ export default function BuyRegions() {
     </section>
   );
 }
+

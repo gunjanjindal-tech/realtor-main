@@ -22,7 +22,7 @@ export default function PropertyGrid() {
 );
 
     const data = await res.json();
-    const newItems = data.bundle || [];
+    const newItems = data.listings || data.bundle || [];
 
     setListings((prev) => (reset ? newItems : [...prev, ...newItems]));
     setOffset((prev) => prev + 12);

@@ -13,41 +13,44 @@ const pricePerSqFt =
     ? Math.round(listing.ListPrice / sqft)
     : null;
 
-<script
-  type="application/ld+json"
-  dangerouslySetInnerHTML={{
-    __html: JSON.stringify({
-      "@context": "https://schema.org",
-      "@type": "Residence",
-      name: listing.UnparsedAddress,
-      address: {
-        "@type": "PostalAddress",
-        addressLocality: listing.City,
-        addressRegion: listing.Province,
-        addressCountry: "CA",
-      },
-      floorSize: sqft
-        ? {
-            "@type": "QuantitativeValue",
-            value: sqft,
-            unitCode: "FTK",
-          }
-        : undefined,
-      offers: {
-        "@type": "Offer",
-        price: listing.ListPrice,
-        priceCurrency: "CAD",
-        availability: "https://schema.org/InStock",
+  // Structured data for SEO
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "Residence",
+    name: listing.UnparsedAddress,
+    address: {
+      "@type": "PostalAddress",
+      addressLocality: listing.City,
+      addressRegion: listing.Province,
+      addressCountry: "CA",
+    },
+    ...(sqft && {
+      floorSize: {
+        "@type": "QuantitativeValue",
+        value: sqft,
+        unitCode: "FTK",
       },
     }),
-  }}
-/>
+    offers: {
+      "@type": "Offer",
+      price: listing.ListPrice,
+      priceCurrency: "CAD",
+      availability: "https://schema.org/InStock",
+    },
+  };
 
   return (
-    <Link
-      href={`/buy/${listing.ListingId}`}
-      className="group rounded-2xl overflow-hidden bg-white border hover:shadow-2xl transition"
-    >
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(structuredData),
+        }}
+      />
+      <Link
+        href={`/buy/${listing.ListingId}`}
+        className="group rounded-2xl overflow-hidden bg-white border hover:shadow-2xl transition"
+      >
       {/* IMAGE */}
       <div className="relative aspect-[4/3] overflow-hidden bg-gray-100">
         <img
@@ -98,5 +101,6 @@ const pricePerSqFt =
         </div>
       </div>
     </Link>
+    </>
   );
 }
