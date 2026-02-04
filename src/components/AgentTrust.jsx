@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function AgentTrust() {
   return (
     <section className="bg-white py-28">
@@ -44,15 +46,17 @@ export default function AgentTrust() {
           </ul>
 
           {/* CTA */}
-        <div className="mt-12">
-  <button className="group inline-flex items-center gap-3 rounded-full bg-red-600 px-10 py-4 text-sm font-semibold tracking-wide text-white transition-all duration-300 hover:bg-red-700 hover:shadow-lg">
-    Contact Us
+<div className="mt-12">
+  <Link href="/contact">
+    <button className="group inline-flex items-center gap-3 rounded-full bg-red-600 px-10 py-4 text-sm font-semibold tracking-wide text-white transition-all duration-300 hover:bg-red-700 hover:shadow-lg">
+      Contact Us
 
-    {/* Arrow */}
-    <span className="inline-block transform transition-transform duration-300 group-hover:translate-x-1">
-      →
-    </span>
-  </button>
+      {/* Arrow */}
+      <span className="inline-block transform transition-transform duration-300 group-hover:translate-x-1">
+        →
+      </span>
+    </button>
+  </Link>
 </div>
 
         </div>

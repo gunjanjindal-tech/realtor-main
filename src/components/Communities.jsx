@@ -69,37 +69,55 @@ export default function Communities() {
           </p>
         </div>
 
-        {/* ✅ GRID (FIXED) */}
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {communities.map((community) => (
-            <div
-              key={community.name}
-              className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-8 transition-all duration-300 hover:-translate-y-1 hover:border-red-500 hover:shadow-xl"
-            >
-              {/* Hover Gradient */}
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-red-50 via-white to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+        {/* RESPONSIVE GRID */}
+<div
+  className="
+    flex gap-4 overflow-x-auto pb-4
+    snap-x snap-mandatory
+    px-4
 
-              <h3 className="relative text-xl font-semibold text-[#091D35] transition group-hover:text-red-600">
-                {community.name}
-              </h3>
+    scrollbar-hide
 
-              <p className="relative mt-3 text-sm leading-relaxed text-gray-600">
-                {community.description}
-              </p>
-
-              <div className="relative mt-6 inline-flex items-center text-sm font-semibold text-red-600">
-             <a
-  href={`/buy/${community.name.toLowerCase().replace(/\s+/g, "-")}`}
-  className="mt-6 inline-flex items-center text-sm font-semibold text-red-600"
+    sm:grid sm:grid-cols-2 sm:gap-6
+    sm:overflow-visible sm:px-0
+    lg:grid-cols-3
+  "
 >
-  View Homes →
-</a>
+  {communities.map((community, index) => (
+    <div
+      key={community.name}
+      className="
+        group relative snap-start
+        min-w-[260px]
+        overflow-hidden rounded-2xl border border-gray-200 bg-white p-6
+        transition-all duration-300
+        hover:-translate-y-1 hover:border-red-500 hover:shadow-xl
+
+        sm:min-w-0 sm:p-8
+      "
+    >
+      {/* Hover Gradient */}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-red-50 via-white to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+
+      <h3 className="relative text-lg sm:text-xl font-semibold text-[#091D35] group-hover:text-red-600">
+        {community.name}
+      </h3>
+
+      <p className="relative mt-3 text-sm leading-relaxed text-gray-600">
+        {community.description}
+      </p>
+
+      <a
+        href={`/buy/${community.name.toLowerCase().replace(/\s+/g, "-")}`}
+        className="relative mt-6 inline-flex items-center text-sm font-semibold text-red-600"
+      >
+        View Homes →
+      </a>
+    </div>
+  ))}
+</div>
 
 
-              </div>
-            </div>
-          ))}
-        </div>
 
         {/* CTA */}
         <div className="mt-16 text-center">

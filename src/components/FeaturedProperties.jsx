@@ -27,78 +27,91 @@ export default function FeaturedProperties() {
   ];
 
   return (
-    <section className="bg-white py-24">
+    <section className="bg-white py-24 overflow-hidden">
       <div className="mx-auto max-w-7xl px-6">
 
         {/* Heading */}
         <div className="mb-16 max-w-3xl">
-          <span className="text-sm font-semibold tracking-widest text-gray-400 uppercase">
+          <span className="text-sm font-semibold uppercase tracking-widest text-gray-400">
             Featured Listings
           </span>
 
-          <h2 className="mt-3 text-4xl font-bold text-[#091D35] leading-tight">
+          <h2 className="mt-3 text-4xl font-bold text-[#091D35]">
             Handpicked Homes Across Nova Scotia
           </h2>
 
-          <div className="mt-4 h-[3px] w-30 bg-red-600" />
+          <div className="mt-4 h-[3px] w-24 bg-red-600" />
 
           <p className="mt-6 text-lg text-gray-600">
             Discover a curated selection of exceptional properties,
             chosen for their location, design, and lifestyle appeal.
           </p>
         </div>
+      </div>
 
-        {/* Cards */}
-        <div className="grid gap-10 md:grid-cols-3">
-          {properties.map((property) => (
-            <div
-              key={property.id}
-              className="group overflow-hidden rounded-2xl border bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
-            >
-              {/* Image */}
-              <div className="relative h-82 overflow-hidden">
-                <img
-                  src={property.image}
-                  alt={`${property.title} in ${property.location}`}
-                  className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                  loading="lazy"
-                />
+      {/* 🔥 MOBILE SCROLL / DESKTOP GRID */}
+      <div
+        className="
+          flex gap-6 overflow-x-auto px-6
+          snap-x snap-mandatory scroll-px-6
+          sm:grid sm:grid-cols-2 sm:gap-10 sm:overflow-visible sm:px-6
+          md:grid-cols-3 scrollbar-hide
+        "
+      >
+        {properties.map((property, index) => (
+          <div
+            key={property.id}
+            className="
+              snap-start
+              min-w-[280px]
+              rounded-2xl border bg-white shadow-sm
+              transition-all duration-300
+              hover:-translate-y-1 hover:shadow-xl
+              sm:min-w-0
+            "
+          >
+            {/* Image */}
+            <div className="relative h-72 overflow-hidden rounded-t-2xl">
+              <img
+                src={property.image}
+                alt={property.title}
+                className="h-full w-full object-cover transition duration-500 hover:scale-105"
+              />
 
-                <span className="absolute left-5 top-5 rounded-full bg-[#091D35] px-4 py-1 text-xs font-semibold text-white">
-                  For Sale
+              <span className="absolute left-4 top-4 rounded-full bg-[#091D35] px-4 py-1 text-xs font-semibold text-white">
+                For Sale
+              </span>
+            </div>
+
+            {/* Content */}
+            <div className="p-5">
+              <h3 className="text-lg font-semibold text-[#091D35]">
+                {property.title}
+              </h3>
+
+              <p className="mt-1 text-sm text-gray-500">
+                {property.location}
+              </p>
+
+              <div className="mt-6 flex items-center justify-between">
+                <span className="text-xl font-bold text-[#091D35]">
+                  {property.price}
                 </span>
-              </div>
 
-              {/* Content */}
-              <div className="p-5">
-                <h3 className="text-lg font-semibold text-[#091D35]">
-                  {property.title}
-                </h3>
-
-                <p className="mt-1 text-sm text-gray-500">
-                  {property.location}
-                </p>
-
-                <div className="mt-6 flex items-center justify-between">
-                  <span className="text-xl font-bold text-[#091D35]">
-                    {property.price}
-                  </span>
-
-                  <button className="rounded-full border border-[#091D35] px-5 py-2 text-sm font-medium text-[#091D35] transition hover:bg-[#091D35] hover:text-white">
-                    View Details
-                  </button>
-                </div>
+                <button className="rounded-full border border-[#091D35] px-5 py-2 text-sm font-medium text-[#091D35] transition hover:bg-[#091D35] hover:text-white">
+                  View Details
+                </button>
               </div>
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
+      </div>
 
-        {/* View More Button */}
-        <div className="mt-16 flex justify-center">
-          <button className="rounded-full bg-red-600 px-10 py-4 text-sm font-semibold tracking-wide text-white transition hover:bg-red-700">
-            View More Properties
-          </button>
-        </div>
+      {/* CTA */}
+      <div className="mt-16 flex justify-center">
+        <button className="rounded-full bg-red-600 px-10 py-4 text-sm font-semibold tracking-wide text-white transition hover:bg-red-700">
+          View More Properties
+        </button>
       </div>
     </section>
   );
