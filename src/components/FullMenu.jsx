@@ -135,31 +135,37 @@ export default function FullMenu({ close }) {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-3 text-white/80">
                     {[
-                      "Halifax Real Estate",
-                      "Bedford Real Estate",
-                      "Dartmouth Real Estate",
-                      "Sackville Real Estate",
-                      "Clayton Park Real Estate",
-                      "Fall River Real Estate",
-                    ].map((c) => (
-                      <Link
-                        key={c}
-                        href="/communities"
-                        onClick={close}
-                        className="hover:text-white hover:underline underline-offset-2 transition"
-                      >
-                        {c}
-                      </Link>
-                    ))}
+  "Halifax Real Estate",
+  "Bedford Real Estate",
+  "Dartmouth Real Estate",
+  "Forest Hills Real Estate",
+  "Cole Harbour Real Estate",
+  "Timberlea Real Estate",
+  "Spryfield Real Estate",
+  "Hammonds Plains Real Estate",
+  "Purcell’s Cove Real Estate",
+  "Sackville Real Estate",
+  "Clayton Park Real Estate",
+  "Fall River Real Estate",
+].map((c) => {
+  const city = c.replace(" Real Estate", "");
+  const slug = city.toLowerCase().replace(/\s+/g, "-");
+
+  return (
+    <Link
+      key={c}
+      href={`/buy/${slug}`}
+      onClick={close}
+      className="hover:text-white hover:underline underline-offset-2 transition"
+    >
+      {c}
+    </Link>
+  );
+})}
+
                   </div>
 
-                  <Link
-                    href="/communities"
-                    onClick={close}
-                    className="inline-block mt-4 text-xs font-medium text-white underline"
-                  >
-                    View All Communities →
-                  </Link>
+               
                 </div>
 
                 {/* CONTACT */}

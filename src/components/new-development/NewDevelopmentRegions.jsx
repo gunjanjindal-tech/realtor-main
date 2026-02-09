@@ -84,9 +84,22 @@ export default function NewDevelopmentRegions() {
                 key={region.city}
                 onMouseEnter={() => setActive(region)}
                 onClick={() => router.push(`/new-development?city=${region.city}`)}
-                className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-6
-                           transition-all duration-300 hover:-translate-y-1 hover:border-red-500 hover:shadow-xl"
+                className="group relative 
+    overflow-hidden rounded-2xl border border-gray-200 bg-white p-6
+        transition-all duration-300
+        hover:-translate-y-1 hover:border-red-500 hover:shadow-xl
+
+        sm:min-w-0 "
               >
+                     {/* HOVER GRADIENT (SAME AS COMMUNITIES) */}
+                <div
+                  className="
+    pointer-events-none absolute inset-0
+    bg-gradient-to-br from-red-50 via-white to-transparent
+    opacity-0 transition-opacity duration-300
+    group-hover:opacity-100
+  "
+                />
                 <div className="relative flex items-center justify-between">
                   <span className="font-semibold text-[#091D35] group-hover:text-red-600">
                     {region.city}
@@ -94,8 +107,9 @@ export default function NewDevelopmentRegions() {
                   <span className="group-hover:translate-x-1 transition">→</span>
                 </div>
 
-                <p className="mt-2 text-sm font-medium text-red-600 text-left">
-                  {counts[region.city] || 0} New Developments
+               
+                <p className="relative mt-2 text-sm font-medium text-red-600 text-left">
+                  View Homes
                 </p>
               </button>
             ))}

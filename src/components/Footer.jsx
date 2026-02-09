@@ -38,28 +38,35 @@ export default function Footer() {
             </h4>
 
             <div className="grid grid-cols-2 md:grid-cols-2 space-x-10 space-y-3 text-sm">
-              {[
-                "Halifax Real Estate",
-                "Bedford Real Estate",
-                "Sackville Real Estate",
-                "Clayton Park Real Estate",
-                "Timberlea Real Estate",
-                "Spryfield Real Estate",
-                "Dartmouth Real Estate",
-                "Cole Harbour Real Estate",
-                "Forest Hills Real Estate",
-                "Fall River Real Estate",
-                "Hammonds Plains Real Estate",
-                "Purcell’s Cove Real Estate",
-              ].map((item) => (
-                <Link
-                  key={item}
-                  href="/communities"
-                  className="hover:text-white transition"
-                >
-                  {item}
-                </Link>
-              ))}
+             {[
+  "Halifax Real Estate",
+  "Bedford Real Estate",
+  "Dartmouth Real Estate",
+  "Forest Hills Real Estate",
+  "Cole Harbour Real Estate",
+  "Timberlea Real Estate",
+  "Spryfield Real Estate",
+  "Hammonds Plains Real Estate",
+  "Purcell’s Cove Real Estate",
+  "Sackville Real Estate",
+  "Clayton Park Real Estate",
+  "Fall River Real Estate",
+].map((c) => {
+  const city = c.replace(" Real Estate", "");
+  const slug = city.toLowerCase().replace(/\s+/g, "-");
+
+  return (
+    <Link
+      key={c}
+      href={`/buy/${slug}`}
+      onClick={close}
+      className="hover:text-white hover:underline underline-offset-2 transition"
+    >
+      {c}
+    </Link>
+  );
+})}
+
             </div>
 
            
@@ -97,53 +104,10 @@ export default function Footer() {
           </div>
         </div>
 
-        {/* ================= DIVIDER ================= */}
-        <div className="mt-20 h-px w-full bg-white/10" />
 
-{/* ================= OFFICES ================= */}
-<div className="relative mt-24">
-  <h4 className="mb-12 text-center sm:text-lg md:text-xl font-semibold tracking-[0.15em] text-white uppercase mt-6 mb-6">
-    REMAX Nova Offices
-  </h4>
-
-  <div className="relative grid sm:grid-cols-2 lg:grid-cols-5 text-sm">
-
-    {/* VERTICAL DIVIDERS (ONLY DESKTOP) */}
-    <div className="hidden lg:block absolute inset-y-0 left-[20%] w-px bg-white/10" />
-    <div className="hidden lg:block absolute inset-y-0 left-[40%] w-px bg-white/10" />
-    <div className="hidden lg:block absolute inset-y-0 left-[60%] w-px bg-white/10" />
-    <div className="hidden lg:block absolute inset-y-0 left-[80%] w-px bg-white/10" />
-
-    <Office
-      city="Halifax"
-      address="397 Bedford Hwy, Halifax, NS B3M 2L3"
-      phone="(902) 453-9300"
-    />
-    <Office
-      city="Dartmouth"
-      address="32 Akerley Blvd #101, Dartmouth, NS B3B 1N1"
-      phone="(902) 468-3400"
-    />
-    <Office
-      city="Downtown Halifax"
-      address="5943 Spring Garden Rd, Halifax, NS B3H 1Y4"
-      phone="(902) 444-1920"
-    />
-    <Office
-      city="Enfield"
-      address="287 Hwy 2, Enfield, NS B2T 1C9"
-      phone="(902) 883-3208"
-    />
-    <Office
-      city="Windsor"
-      address="141 Wentworth Rd, Windsor, NS B0N 2T0"
-      phone="(902) 798-5200"
-    />
-  </div>
-</div>
 
 {/* ================= LEGAL ================= */}
-<div className="mt-20 rounded-2xl bg-white/5 px-8 py-6 text-xs leading-relaxed text-gray-400 max-w-5xl mx-auto">
+<div className="mt-20 rounded-2xl bg-white/5 px-8 py-6 text-xs leading-relaxed text-gray-400 max-w-5xl ">
   By using this website, you agree to our{" "}
   <Link href="/terms-of-use" className="underline hover:text-white">
     Terms of Use
