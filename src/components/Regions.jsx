@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 const regions = [
   {
@@ -39,7 +40,13 @@ const regions = [
 ];
 
 export default function Regions() {
+  const router = useRouter();
   const [activeCity, setActiveCity] = useState(regions[0]);
+
+  const handleRegionClick = (region) => {
+    // Navigate to buy page - user can filter by region name
+    router.push(`/buy?region=${encodeURIComponent(region.name)}`);
+  };
 
   return (
    <section className="relative overflow-hidden py-60">
@@ -60,7 +67,7 @@ export default function Regions() {
       <div className="absolute inset-0 bg-gradient-to-r from-white via-white/90 to-white/70" />
 
       {/* CONTENT */}
-      <div className="relative mx-auto grid max-w-7xl grid-cols-1 gap-16 px-6 lg:grid-cols-2">
+      <div className="relative mx-auto grid max-w-[1600px] grid-cols-1 gap-16 px-6 lg:grid-cols-2">
 
         {/* LEFT CONTENT */}
         <div>
@@ -92,6 +99,7 @@ export default function Regions() {
             <div
               key={city.name}
               onMouseEnter={() => setActiveCity(city)}
+              onClick={() => handleRegionClick(city)}
               className="group cursor-pointer rounded-xl bg-white p-4 shadow-sm transition-all hover:shadow-xl"
             >
               <div className="flex items-center justify-between">

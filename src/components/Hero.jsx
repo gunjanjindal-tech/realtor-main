@@ -17,7 +17,7 @@ export default function Hero() {
   return (
     <section className="relative h-screen overflow-hidden">
 
-      {/* Background Video */}
+      {/* Background Video - preload metadata only for faster initial load */}
       <video
         className="absolute inset-0 h-full w-full object-cover"
         src="/videos/nova-scotia.mp4"
@@ -25,6 +25,7 @@ export default function Hero() {
         muted
         loop
         playsInline
+        preload="metadata"
       />
 
       {/* Cinematic Overlay */}

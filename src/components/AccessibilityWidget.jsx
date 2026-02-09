@@ -4,16 +4,42 @@ import { useEffect } from "react";
 
 export default function AccessibilityWidget() {
   useEffect(() => {
-    const script = document.createElement("script");
-    script.src = "https://cdn.userway.org/widget.js";
-    script.setAttribute("data-account", "YOUR_USERWAY_ACCOUNT_ID");
-    script.async = true;
+    // Only load UserWay widget if account ID is configured
+    const accountId = "YOUR_USERWAY_ACCOUNT_ID";
+    
+    // Skip loading if account ID is not configured
+    if (!accountId || accountId === "YOUR_USERWAY_ACCOUNT_ID") {
+      return;
+    }
 
-    document.body.appendChild(script);
+    // Check if widget is already loaded
+    if (document.querySelector('script[src*="userway.org"]')) {
+      return;
+    }
 
-    return () => {
-      document.body.removeChild(script);
-    };
+    try {
+      const script = document.createElement("script");
+      script.src = "https://cdn.userway.org/widget.js";
+      script.setAttribute("data-account", accountId);
+      script.async = true;
+      
+      // Add error handling
+      script.onerror = () => {
+        console.warn("UserWay widget failed to load");
+      };
+
+      document.body.appendChild(script);
+
+      return () => {
+        // Safely remove script on cleanup
+        const scriptElement = document.querySelector('script[src*="userway.org"]');
+        if (scriptElement && scriptElement.parentNode) {
+          scriptElement.parentNode.removeChild(scriptElement);
+        }
+      };
+    } catch (error) {
+      console.warn("Error loading UserWay widget:", error);
+    }
   }, []);
 
   return null;

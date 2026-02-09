@@ -87,3 +87,6 @@ If still no data:
 3. Test endpoint: `/api/bridge/test` to see raw API response
 4. Check browser console for frontend errors
 
+
+
+
