@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import BuyCityHero from "@/components/buy/BuyCityHero";
 import Breadcrumbs from "@/components/common/Breadcrumbs";
 import ListingsToolbar from "@/components/buy/ListingsToolbar";
@@ -10,7 +10,9 @@ import FeaturedProperties from "@/components/buy/FeaturedProperties";
 
 export default function CityBuyPage() {
   const params = useParams();
+  const router = useRouter();
   const [city, setCity] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [filters, setFilters] = useState({
     minPrice: "",
     maxPrice: "",
@@ -31,6 +33,13 @@ export default function CityBuyPage() {
   const handleApplyFilters = (newFilters) => {
     setFilters(newFilters);
     setFiltersOpen(false);
+  };
+
+  const handleSearchSubmit = (query) => {
+    const q = (query || searchQuery || "").trim();
+    if (q) {
+      router.push(`/search?q=${encodeURIComponent(q)}`);
+    }
   };
 
   if (!city) {
@@ -80,7 +89,12 @@ export default function CityBuyPage() {
   </div>
 
   {/* RIGHT */}
-  <ListingsToolbar onOpenFilters={() => setFiltersOpen(true)} />
+  <ListingsToolbar
+            searchQuery={searchQuery}
+            onSearchQueryChange={setSearchQuery}
+            onSearchSubmit={handleSearchSubmit}
+            onOpenFilters={() => setFiltersOpen(true)}
+          />
 </div>
 
 

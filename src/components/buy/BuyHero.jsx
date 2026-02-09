@@ -11,7 +11,7 @@ export default function BuyHero({ city }) {
         {/* RED UNDERLINE */}
         <div className="mx-auto mt-6 h-[3px] w-24 bg-red-600" />
 
-        <p className="mt-4 text-lg text-white/80 max-w-2xl mx-auto">
+        <p className="mt-4 text-lg text-white/80 max-w-3xl mx-auto">
           {city
             ? `Browse available listings in ${city}, Nova Scotia`
             : "Discover homes, communities, and opportunities across Nova Scotia."}

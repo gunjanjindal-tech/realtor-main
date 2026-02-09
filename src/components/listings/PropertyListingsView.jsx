@@ -5,11 +5,14 @@ import { useSearchParams } from "next/navigation";
 import PropertyCard from "@/components/buy/PropertyCard";
 import PropertyListingsMap from "./PropertyListingsMap";
 import { Search, Filter, Map, List as ListIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ChevronDown } from "lucide-react";
 
 // Higher limit so map shows more properties (API allows it)
 const LISTINGS_LIMIT = 200;
 
 export default function PropertyListingsView() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const listingType = searchParams?.get("type") === "rent" ? "rent" : "sale";
 
@@ -136,6 +139,15 @@ export default function PropertyListingsView() {
       {/* HEADER WITH SEARCH AND FILTERS */}
       <div className="bg-white border-b sticky top-0 z-50">
         <div className="max-w-[1600px] mx-auto px-6 py-4">
+
+          {/* Back Button */}
+          <button
+  onClick={() => router.back()}
+  className="mb-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 transition "
+>
+  ← Back
+</button>
+
           {/* Search Bar */}
           <form onSubmit={handleSearch} className="mb-4">
             <div className="flex gap-3">
@@ -173,7 +185,8 @@ export default function PropertyListingsView() {
 
           {/* Filters and View Toggle */}
           <div className="flex items-center justify-between flex-wrap gap-4">
-            <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-4 flex-wrap ">
+
               <select
                 value={filters.minPrice}
                 onChange={(e) => {
@@ -181,15 +194,22 @@ export default function PropertyListingsView() {
                   setFilters((prev) => ({ ...prev, minPrice: newValue }));
                   setPage(1);
                 }}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600"
-              >
+               className="appearance-none px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 "
+
+                >
+
+
+
                 <option value="">Any Price</option>
                 <option value="100000">$100K+</option>
                 <option value="200000">$200K+</option>
                 <option value="300000">$300K+</option>
                 <option value="500000">$500K+</option>
                 <option value="1000000">$1M+</option>
-              </select>
+                 {/* Custom Arrow */}
+
+                </select>
+                
               <select
                 value={filters.maxPrice}
                 onChange={(e) => {
@@ -197,7 +217,8 @@ export default function PropertyListingsView() {
                   setFilters((prev) => ({ ...prev, maxPrice: newValue }));
                   setPage(1);
                 }}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600"
+               className="appearance-none px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600"
+
               >
                 <option value="">Max Price</option>
                 <option value="300000">Up to $300K</option>
@@ -213,7 +234,8 @@ export default function PropertyListingsView() {
                   setFilters((prev) => ({ ...prev, minBeds: newValue }));
                   setPage(1);
                 }}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600"
+                className="appearance-none px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600"
+
               >
                 <option value="">All Beds</option>
                 <option value="1">1+</option>
@@ -229,7 +251,8 @@ export default function PropertyListingsView() {
                   setFilters((prev) => ({ ...prev, minBaths: newValue }));
                   setPage(1);
                 }}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600"
+                className="appearance-none px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600"
+
               >
                 <option value="">All Baths</option>
                 <option value="1">1+</option>
@@ -254,7 +277,8 @@ export default function PropertyListingsView() {
                 >
                   Clear All
                 </button>
-              )}
+                )}
+        
             </div>
 
             {/* View Mode Toggle */}
@@ -359,7 +383,15 @@ export default function PropertyListingsView() {
                 </div>
               ) : (
                 <>
-                  <div className="space-y-4">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  {displayedListings.map((listing) => (
+    <PropertyCard
+      key={listing.ListingId || listing.Id}
+      listing={listing}
+      listingType={listingType}
+    />
+  ))}
+
                     {displayedListings.map((listing) => (
                       <PropertyCard key={listing.ListingId || listing.Id} listing={listing} listingType={listingType} />
                     ))}
@@ -411,7 +443,7 @@ export default function PropertyListingsView() {
               <div className="text-center py-12 text-red-600">{error}</div>
             ) : listings.length === 0 ? (
               <div className="text-center py-12 text-gray-500">
-                No properties found
+                Loading properties...
               </div>
             ) : (
               <>

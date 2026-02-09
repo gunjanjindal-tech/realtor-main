@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 
 export default function PropertyCard({ listing, showNewDevelopmentBadge = false, listingType = "sale" }) {
+  if (!listing) return null;
   const image = listing.Image || "/images/placeholder.jpg";
   const isExternal = image.startsWith("http");
   
@@ -71,10 +72,11 @@ export default function PropertyCard({ listing, showNewDevelopmentBadge = false,
       />
       <Link
         href={`/buy/${citySlug}/${listingId}`}
-        className="group rounded-2xl overflow-hidden bg-white border hover:shadow-2xl transition block"
+        className="group rounded-2xl overflow-hidden bg-white shadow-md hover:shadow-2xl transition block"
       >
       {/* IMAGE */}
-      <div className="relative aspect-[4/3] overflow-hidden bg-gray-100">
+      <div className="relative aspect-[16/10] overflow-hidden bg-gray-100">
+
         <Image
           src={image}
           alt={listing.UnparsedAddress || "Property"}
@@ -85,10 +87,12 @@ export default function PropertyCard({ listing, showNewDevelopmentBadge = false,
         />
 
         <div className="absolute top-4 left-4 flex flex-col gap-2">
-          <span className="bg-red-600 text-white text-xs font-semibold px-3 py-1 rounded-full">
-            {listingType === "rent" ? "For Rent" : "For Sale"}
-          </span>
-          {isNewDevelopment && (
+          {listingType !== "newDevelopment" && (
+            <span className="bg-red-600 text-white text-xs font-semibold px-3 py-1 rounded-full">
+              {listingType === "rent" ? "For Rent" : "For Sale"}
+            </span>
+          )}
+          {(listingType === "newDevelopment" || isNewDevelopment) && (
             <span className="bg-blue-600 text-white text-xs font-semibold px-3 py-1 rounded-full">
               New Development
             </span>
@@ -97,7 +101,7 @@ export default function PropertyCard({ listing, showNewDevelopmentBadge = false,
       </div>
 
       {/* CONTENT */}
-      <div className="p-6">
+      <div className="p-4">
         <p className="text-red-600 font-semibold text-lg">
           ${Number(listing.ListPrice).toLocaleString()}
         </p>

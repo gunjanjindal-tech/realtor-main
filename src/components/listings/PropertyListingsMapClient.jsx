@@ -121,6 +121,7 @@ export default function PropertyListingsMapClient({ listings = [], mapCenter, on
                         `${listing.City || ""}, ${listing.Province || "NS"}`.trim();
           const beds = listing.BedroomsTotal || "N/A";
           const baths = listing.BathroomsTotalInteger || listing.BathroomsTotal || "N/A";
+          const imageUrl = listing.Image || listing.Media?.[0]?.MediaURL || listing.Media?.[0]?.MediaURLThumb || "/images/placeholder.jpg";
 
           return (
             <Marker
@@ -128,16 +129,27 @@ export default function PropertyListingsMapClient({ listings = [], mapCenter, on
               position={[lat, lng]}
             >
               <Popup>
-                <div className="p-2 max-w-xs">
-                  <h3 className="font-semibold text-[#091D35] text-sm mb-1">
-                    {price}
-                  </h3>
-                  <p className="text-xs text-gray-600 mb-2">
-                    {address}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {beds} bed, {baths} bath
-                  </p>
+                <div className="p-0 max-w-[280px] overflow-hidden rounded-lg">
+                  {imageUrl && (
+                    <div className="aspect-[4/3] w-full overflow-hidden bg-gray-100">
+                      <img
+                        src={imageUrl}
+                        alt={address}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )}
+                  <div className="p-3">
+                    <h3 className="font-semibold text-[#091D35] text-sm mb-1">
+                      {price}
+                    </h3>
+                    <p className="text-xs text-gray-600 mb-2">
+                      {address}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {beds} bed, {baths} bath
+                    </p>
+                  </div>
                 </div>
               </Popup>
             </Marker>
@@ -145,12 +157,9 @@ export default function PropertyListingsMapClient({ listings = [], mapCenter, on
         })}
       </MapContainer>
       
-      {/* Show count + hint when list filters by map */}
+      {/* Hint only – count hidden per request */}
       <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-lg shadow-lg z-[1000]">
-        <p className="text-sm font-semibold text-[#091D35]">
-          {validListings.length} {validListings.length === 1 ? "Property" : "Properties"}
-        </p>
-        <p className="text-xs text-gray-600 mt-1">
+        <p className="text-xs text-gray-600">
           {onBoundsChange ? "Zoom or pan to filter list on the left" : "Click markers for details"}
         </p>
       </div>

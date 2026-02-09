@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 const REGIONS = [
@@ -18,45 +18,26 @@ const REGIONS = [
   { city: "Antigonish", image: "https://images.unsplash.com/photo-1501594907352-04cda38ebc29?q=80&w=1600" },
 ];
 
-export default function NewDevelopmentRegions() {
+export default function RentRegions() {
   const router = useRouter();
   const [active, setActive] = useState(REGIONS[0]);
-  const [counts, setCounts] = useState({});
 
-  useEffect(() => {
-    async function fetchCounts() {
-      try {
-        const res = await fetch("/api/bridge/new-development-counts");
-        if (!res.ok) throw new Error("Failed");
-        const data = await res.json();
-        setCounts(data);
-      } catch (e) {
-        console.log("Counts fallback");
-        setCounts({});
-      }
-    }
-    fetchCounts();
-  }, []);
+  const toSlug = (name) => name.toLowerCase().replace(/\s+/g, "-");
 
   return (
     <section className="bg-white py-24">
       <div className="max-w-[1600px] mx-auto px-6">
-
-        {/* HEADING */}
         <div className="mb-14 max-w-xl">
           <h2 className="text-4xl md:text-5xl font-extrabold text-[#091D35]">
             Our Regions
           </h2>
           <div className="mt-4 h-[3px] w-20 bg-red-600" />
           <p className="mt-5 text-gray-600">
-            Explore new developments across Nova Scotia communities.
+            Explore rentals by location across Nova Scotia.
           </p>
         </div>
 
-        {/* SAME DESKTOP UI */}
         <div className="hidden lg:grid lg:grid-cols-[420px_1fr] gap-16 items-start">
-
-          {/* LEFT BIG PREVIEW */}
           <div>
             <div className="relative h-[480px] rounded-3xl overflow-hidden shadow-xl">
               <img
@@ -70,20 +51,17 @@ export default function NewDevelopmentRegions() {
                   Explore
                 </p>
                 <h3 className="text-2xl font-bold">{active.city}</h3>
-                <p className="text-sm opacity-80">
-                  {counts[active.city] || 0} New Developments
-                </p>
+                <p className="text-sm opacity-80">Rentals</p>
               </div>
             </div>
           </div>
 
-          {/* RIGHT GRID */}
           <div className="grid grid-cols-2 xl:grid-cols-3 gap-6">
             {REGIONS.map((region) => (
               <button
                 key={region.city}
                 onMouseEnter={() => setActive(region)}
-                onClick={() => router.push(`/new-development/${region.city.toLowerCase().replace(/\s+/g, "-")}`)}
+                onClick={() => router.push(`/rent/${toSlug(region.city)}`)}
                 className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-6
                            transition-all duration-300 hover:-translate-y-1 hover:border-red-500 hover:shadow-xl"
               >
@@ -93,15 +71,33 @@ export default function NewDevelopmentRegions() {
                   </span>
                   <span className="group-hover:translate-x-1 transition">→</span>
                 </div>
-
                 <p className="mt-2 text-sm font-medium text-red-600 text-left">
-                  {counts[region.city] || 0} New Developments
+                  View Rentals
                 </p>
               </button>
             ))}
           </div>
         </div>
 
+        {/* Mobile */}
+        <div className="lg:hidden flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory">
+          {REGIONS.map((region) => (
+            <button
+              key={region.city}
+              onClick={() => router.push(`/rent/${toSlug(region.city)}`)}
+              className="snap-start min-w-[260px] rounded-2xl overflow-hidden border border-gray-200"
+            >
+              <div className="relative h-44">
+                <img src={region.image} alt={region.city} className="h-full w-full object-cover" />
+                <div className="absolute inset-0 bg-black/35" />
+                <div className="absolute bottom-4 left-4 text-white">
+                  <h3 className="text-lg font-semibold">{region.city}</h3>
+                  <p className="text-xs opacity-80">View Rentals →</p>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
       </div>
     </section>
   );

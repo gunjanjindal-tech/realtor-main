@@ -141,7 +141,7 @@ return (
 
       {/* LISTINGS */}
       {listings.length === 0 ? (
-        <p className="text-gray-500">No properties found.</p>
+        <p className="text-center py-20 text-gray-500">Loading featured properties...</p>
       ) : (
         <>
           {/* MOBILE: horizontal scroll */}

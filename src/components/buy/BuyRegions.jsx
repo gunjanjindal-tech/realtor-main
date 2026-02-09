@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+
+
 const REGIONS = [
   {
     name: "Halifax",
@@ -98,9 +100,11 @@ export default function BuyRegions({ onSelectCity }) {
   return (
     <section className="bg-white py-20">
       <div className="mx-auto max-w-[1600px] px-6">
+
+
         {/* ================= HEADING ================= */}
         <div className="mb-12 max-w-xl">
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-[#091D35]">
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-[#091D35]">
             Our Regions
           </h2>
           <div className="mt-3 h-[3px] w-20 bg-red-600" />

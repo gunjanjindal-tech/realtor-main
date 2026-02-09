@@ -9,7 +9,7 @@ export default function NewDevelopmentHero() {
         </h1>
         {/* RED UNDERLINE */}
         <div className="mx-auto mt-6 h-[3px] w-24 bg-red-600" />
-        <p className="mt-4 text-lg text-white/80 max-w-2xl mx-auto">
+        <p className="mt-4 text-lg text-white/80 max-w-3xl mx-auto">
           Discover the latest new construction and pre-construction properties across Nova Scotia.
         </p>
       </div>

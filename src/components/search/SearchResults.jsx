@@ -96,7 +96,7 @@ function SearchResultsContent({ query: initialQuery }) {
   }
 
   return (
-    <section className="bg-white py-24">
+    <section className="bg-white py-14">
       <div className="max-w-[1600px] mx-auto px-6">
         {/* HEADER */}
         <div className="mb-14">

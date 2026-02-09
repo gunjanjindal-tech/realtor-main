@@ -33,8 +33,9 @@ export default function RentFeaturedProperties({ city }) {
           return;
         }
 
-        setListings(data.listings || []);
-        setTotal(data.total || 0);
+        const rawListings = data.listings || data.bundle || [];
+        setListings(Array.isArray(rawListings) ? rawListings.filter(Boolean) : []);
+        setTotal(typeof data.total === "number" ? data.total : 0);
         setError(data.message || null);
       } catch (err) {
         setError(err.message);
@@ -81,13 +82,15 @@ export default function RentFeaturedProperties({ city }) {
         ) : (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10">
-              {listings.map((listing) => (
-                <PropertyCard
-                  key={listing.ListingId || listing.Id}
-                  listing={listing}
-                  listingType="rent"
-                />
-              ))}
+              {listings.map((listing, index) =>
+                listing ? (
+                  <PropertyCard
+                    key={listing.ListingId || listing.Id || `rent-${index}`}
+                    listing={listing}
+                    listingType="rent"
+                  />
+                ) : null
+              )}
             </div>
 
             {totalPages > 1 && (
