@@ -32,7 +32,7 @@ export default function WhyNovaScotia() {
       <div className="absolute top-0 left-0 h-px w-full bg-gray-200" />
       <div className="absolute bottom-0 left-0 h-px w-full bg-gray-200" />
 
-      <div className="mx-auto max-w-7xl px-6 grid gap-20 lg:grid-cols-2">
+      <div className="mx-auto max-w-[1600px] px-6 grid gap-20 lg:grid-cols-2">
 
         {/* LEFT CONTENT */}
         <div>

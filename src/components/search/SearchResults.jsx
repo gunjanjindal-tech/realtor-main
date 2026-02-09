@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import PropertyCard from "../buy/PropertyCard";
 
-export default function SearchResults({ query: initialQuery }) {
+function SearchResultsContent({ query: initialQuery }) {
   const searchParams = useSearchParams();
   const query = initialQuery || searchParams.get("q") || searchParams.get("query") || "";
 
@@ -96,7 +96,7 @@ export default function SearchResults({ query: initialQuery }) {
   }
 
   return (
-    <section className="bg-white py-24">
+    <section className="bg-white py-14">
       <div className="max-w-[1600px] mx-auto px-6">
         {/* HEADER */}
         <div className="mb-14">
@@ -196,4 +196,20 @@ export default function SearchResults({ query: initialQuery }) {
     </section>
   );
 }
+
+export default function SearchResults({ query: initialQuery }) {
+  return (
+    <Suspense fallback={
+      <section className="bg-white py-24">
+        <div className="max-w-[1600px] mx-auto px-6 text-center">
+          <p className="text-gray-500">Loading search results...</p>
+        </div>
+      </section>
+    }>
+      <SearchResultsContent query={initialQuery} />
+    </Suspense>
+  );
+}
+
+
 

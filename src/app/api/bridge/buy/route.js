@@ -1,25 +1,56 @@
 import { bridgeFetch } from "@/lib/bridgeClient";
 import { DATASET_ID } from "@/lib/bridgeConfig";
 
+// Map showcase area names to OData filter so API returns all relevant properties
+const AREA_TO_FILTER = {
+  "Halifax Waterfront": "contains(City, 'Halifax')",
+  "South Shore": "(contains(City, 'Lunenburg') or contains(City, 'Bridgewater') or contains(City, 'Liverpool') or contains(City, 'Chester') or contains(City, 'Mahone') or contains(City, 'Shelburne'))",
+  "Annapolis Valley": "(contains(City, 'Kentville') or contains(City, 'Wolfville') or contains(City, 'Annapolis') or contains(City, 'Berwick') or contains(City, 'Middleton'))",
+  "Cape Breton": "(contains(City, 'Sydney') or contains(City, 'Baddeck') or contains(City, 'Inverness') or contains(City, 'Cape Breton') or contains(City, 'Glace Bay') or contains(City, 'North Sydney'))",
+};
+
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
 
   const page = Number(searchParams.get("page") || 1);
   const limit = Number(searchParams.get("limit") || 9);
   const city = searchParams.get("city");
+  const minPrice = searchParams.get("minPrice");
+  const maxPrice = searchParams.get("maxPrice");
+  const minBeds = searchParams.get("minBeds");
+  const minBaths = searchParams.get("minBaths");
 
   const skip = (page - 1) * limit;
 
   // Build OData $filter query
-  // Using 'eq' for exact matches (more efficient) and 'contains' for partial matches
   const filterParts = [
     "PropertyType eq 'Residential'",
     "StandardStatus eq 'Active'"
   ];
 
   if (city) {
-    // Use 'eq' for exact city match, or 'contains' for partial match
-    filterParts.push(`City eq '${city.replace(/'/g, "''")}'`);
+    const areaFilter = AREA_TO_FILTER[city];
+    if (areaFilter) {
+      filterParts.push(areaFilter);
+    } else {
+      filterParts.push(`City eq '${city.replace(/'/g, "''")}'`);
+    }
+  }
+
+  if (minPrice) {
+    filterParts.push(`ListPrice ge ${minPrice}`);
+  }
+
+  if (maxPrice) {
+    filterParts.push(`ListPrice le ${maxPrice}`);
+  }
+
+  if (minBeds) {
+    filterParts.push(`BedroomsTotal ge ${minBeds}`);
+  }
+
+  if (minBaths) {
+    filterParts.push(`BathroomsTotalInteger ge ${minBaths}`);
   }
 
   const filterQuery = filterParts.join(" and ");
@@ -73,6 +104,10 @@ export async function GET(req) {
       BuildingAreaTotal: item.BuildingAreaTotal,
       LivingArea: item.LivingArea,
 
+      // Coordinates for map
+      Latitude: item.Latitude || item.LatitudeDecimal,
+      Longitude: item.Longitude || item.LongitudeDecimal,
+
       // Image - Media might be in different fields or need separate API call
       Image:
         item.Media?.[0]?.MediaURL ||
@@ -85,14 +120,21 @@ export async function GET(req) {
     // OData standard: @odata.count contains total count
     const total = data["@odata.count"] || data["@count"] || data.total || listings.length;
 
-    return Response.json({
-      listings,
-      total,
-      rawData: process.env.NODE_ENV === "development" ? { 
-        responseKeys: Object.keys(data),
-        sampleItem: data.value?.[0] || data.bundle?.[0] || null 
-      } : undefined,
-    });
+    return Response.json(
+      {
+        listings,
+        total,
+        rawData: process.env.NODE_ENV === "development" ? {
+          responseKeys: Object.keys(data),
+          sampleItem: data.value?.[0] || data.bundle?.[0] || null,
+        } : undefined,
+      },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
+        },
+      }
+    );
   } catch (err) {
     const errorMessage = err.message || "Failed to fetch listings";
     const is404 = errorMessage.includes("404") || errorMessage.includes("Invalid resource");

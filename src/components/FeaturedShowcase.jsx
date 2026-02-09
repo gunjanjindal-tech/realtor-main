@@ -1,26 +1,33 @@
 "use client";
 
+import Link from "next/link";
+import Image from "next/image";
+
 const showcaseItems = [
   {
     title: "Halifax Waterfront",
+    slug: "halifax-waterfront",
     subtitle: "Urban Living",
     image:
       "https://images.unsplash.com/photo-1650073475221-042960a60883?auto=format&fit=crop&w=1400&q=80",
   },
   {
     title: "South Shore",
+    slug: "south-shore",
     subtitle: "Coastal Lifestyle",
     image:
       "https://images.unsplash.com/photo-1688307193832-a6f711942705?auto=format&fit=crop&w=1400&q=80",
   },
   {
     title: "Annapolis Valley",
+    slug: "annapolis-valley",
     subtitle: "Nature & Vineyards",
     image:
       "https://images.unsplash.com/photo-1645406310264-de3fd67ae341?auto=format&fit=crop&w=1400&q=80",
   },
   {
     title: "Cape Breton",
+    slug: "cape-breton",
     subtitle: "Scenic Living",
     image:
       "https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=1400&q=80",
@@ -30,7 +37,7 @@ const showcaseItems = [
 export default function FeaturedShowcase() {
   return (
     <section className="bg-[#0B1F3B] py-24">
-      <div className="mx-auto max-w-7xl px-6">
+      <div className="mx-auto max-w-[1600px] px-6">
 
         {/* Heading */}
         <div className="mb-14 max-w-3xl">
@@ -54,15 +61,18 @@ export default function FeaturedShowcase() {
         <div className="relative">
           <div className="flex gap-6 overflow-x-auto pb-4 scrollbar-hide">
             {showcaseItems.map((item, index) => (
-              <div
+              <Link
                 key={index}
-                className="group relative min-w-[320px] md:min-w-[420px] h-[480px] overflow-hidden rounded-2xl bg-gray-200"
+                href={`/buy/${item.slug}`}
+                className="group relative min-w-[320px] md:min-w-[420px] h-[480px] overflow-hidden rounded-2xl bg-gray-200 block"
               >
                 {/* Image */}
-                <img
+                <Image
                   src={item.image}
                   alt={item.title}
-                  className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                  fill
+                  sizes="(max-width: 768px) 320px, 420px"
+                  className="object-cover transition-transform duration-700 group-hover:scale-105"
                 />
 
                 {/* Dark Overlay */}
@@ -84,7 +94,7 @@ export default function FeaturedShowcase() {
                     </span>
                   </div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         </div>

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import PropertyCard from "./PropertyCard";
 
-export default function FeaturedProperties({ city }) {
+export default function FeaturedProperties({ city, filters = {} }) {
   const topRef = useRef(null);
 
   const [page, setPage] = useState(1);
@@ -12,15 +12,35 @@ export default function FeaturedProperties({ city }) {
 
   const limit = 9;
 
+  /* ---------------- RESET PAGE WHEN FILTERS CHANGE ---------------- */
+  useEffect(() => {
+    setPage(1);
+  }, [filters.minPrice, filters.maxPrice, filters.minBeds, filters.minBaths]);
+
   /* ---------------- FETCH LISTINGS ---------------- */
   useEffect(() => {
     async function fetchListings() {
       try {
-        const res = await fetch(
-          `/api/bridge/buy?page=${page}&limit=${limit}${
-            city ? `&city=${city}` : ""
-          }`
-        );
+        // Build query parameters
+        const params = new URLSearchParams({
+          page: page.toString(),
+          limit: limit.toString(),
+        });
+
+        // Add city filter
+        if (city) {
+          params.append("city", city);
+        }
+
+        // Add filters
+        if (filters.minPrice) params.append("minPrice", filters.minPrice);
+        if (filters.maxPrice) params.append("maxPrice", filters.maxPrice);
+        if (filters.minBeds) params.append("minBeds", filters.minBeds);
+        if (filters.minBaths) params.append("minBaths", filters.minBaths);
+
+        console.log("🔍 [CITY PAGE] Fetching with filters:", Object.fromEntries(params));
+
+        const res = await fetch(`/api/bridge/buy?${params}`);
 
         if (!res.ok) {
           // Try to parse error as JSON, but handle HTML responses
@@ -65,6 +85,7 @@ export default function FeaturedProperties({ city }) {
 
         const data = await res.json();
         console.log("📊 Frontend received data:", {
+          city: city || "all cities",
           hasListings: !!data.listings,
           hasBundle: !!data.bundle,
           listingsCount: data.listings?.length || 0,
@@ -82,7 +103,7 @@ export default function FeaturedProperties({ city }) {
     }
 
     fetchListings();
-  }, [page, city]);
+  }, [page, city, filters.minPrice, filters.maxPrice, filters.minBeds, filters.minBaths]);
 
   const totalPages = Math.ceil(total / limit);
 
@@ -99,31 +120,46 @@ export default function FeaturedProperties({ city }) {
   const startPage = Math.max(1, page - Math.floor(maxButtons / 2));
   const endPage = Math.min(totalPages, startPage + maxButtons - 1);
 
-  return (
-    <section ref={topRef} className="bg-white py-24">
-      <div className="max-w-[1600px] mx-auto px-6">
-        {/* HEADER */}
-       <div className="mb-14">
-  {/* TOP ROW */}
-  <div className="flex items-end justify-between">
-    <h2 className="text-4xl md:text-5xl font-extrabold leading-tight text-[#091D35]">
-      Featured Properties
-    </h2>
+return (
+  <section ref={topRef} className="bg-white py-14 sm:py-16">
+    <div className="max-w-[1600px] mx-auto px-4 sm:px-6">
 
-    <span className="text-sm text-gray-500">
-      Showing {listings.length} of {total}
-    </span>
-  </div>
+      {/* HEADER */}
+      <div className="mb-10 sm:mb-14">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-[#091D35]">
+            Featured Properties
+          </h2>
 
-  {/* SIGNATURE LINE — under heading */}
-  <div className="mt-4 h-[3px] w-25 bg-red-600 rounded-full" />
-</div>
+          <span className="text-sm text-gray-500">
+            Showing {listings.length} of {total}
+          </span>
+        </div>
 
-        {/* GRID */}
-        {listings.length === 0 ? (
-          <p className="text-gray-500">No properties found.</p>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10">
+        <div className="mt-4 h-[3px] w-20 bg-red-600 rounded-full" />
+      </div>
+
+      {/* LISTINGS */}
+      {listings.length === 0 ? (
+        <p className="text-center py-20 text-gray-500">Loading featured properties...</p>
+      ) : (
+        <>
+          {/* MOBILE: horizontal scroll */}
+          <div className="sm:hidden -mx-4 px-4">
+            <div className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4">
+              {listings.map((item) => (
+                <div
+                  key={item.ListingId || item.Id}
+                  className="snap-start min-w-[280px]"
+                >
+                  <PropertyCard listing={item} />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* DESKTOP GRID */}
+          <div className="hidden sm:grid grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-10">
             {listings.map((item) => (
               <PropertyCard
                 key={item.ListingId || item.Id}
@@ -131,52 +167,61 @@ export default function FeaturedProperties({ city }) {
               />
             ))}
           </div>
-        )}
+        </>
+      )}
 
-        {/* PAGINATION */}
-        {totalPages > 1 && (
-          <div className="mt-16 flex justify-center items-center gap-3">
-            {/* PREV */}
+      {/* PAGINATION */}
+      {totalPages > 1 && (
+        <div className="mt-14 flex justify-center items-center gap-2 sm:gap-3">
+
+          {/* PREV */}
+          <button
+            disabled={page === 1}
+            onClick={() => {
+              setPage((p) => p - 1);
+              scrollToTop();
+            }}
+            className="h-10 w-10 sm:h-12 sm:w-12 rounded-full border disabled:opacity-40"
+          >
+            ←
+          </button>
+
+          {/* PAGE NUMBERS */}
+          {Array.from(
+            { length: endPage - startPage + 1 },
+            (_, i) => startPage + i
+          ).map((pageNumber) => (
             <button
-              disabled={page === 1}
-              onClick={() => setPage((p) => p - 1)}
-              className="h-12 w-12 rounded-full border disabled:opacity-40"
+              key={pageNumber}
+              onClick={() => {
+                setPage(pageNumber);
+                scrollToTop();
+              }}
+              className={`h-10 w-10 sm:h-12 sm:w-12 rounded-full text-sm sm:text-base font-medium ${
+                page === pageNumber
+                  ? "bg-[#091D35] text-white"
+                  : "border hover:bg-gray-100"
+              }`}
             >
-              ←
+              {pageNumber}
             </button>
+          ))}
 
-            {/* PAGE NUMBERS */}
-            {Array.from(
-              { length: endPage - startPage + 1 },
-              (_, i) => startPage + i
-            ).map((pageNumber) => (
-              <button
-                key={pageNumber}
-                onClick={() => {
-                  setPage(pageNumber);
-                  scrollToTop(); // ✅ ONLY HERE
-                }}
-                className={`h-12 w-12 rounded-full font-medium ${
-                  page === pageNumber
-                    ? "bg-[#091D35] text-white"
-                    : "border hover:bg-gray-100"
-                }`}
-              >
-                {pageNumber}
-              </button>
-            ))}
+          {/* NEXT */}
+          <button
+            disabled={page === totalPages}
+            onClick={() => {
+              setPage((p) => p + 1);
+              scrollToTop();
+            }}
+            className="h-10 w-10 sm:h-12 sm:w-12 rounded-full border disabled:opacity-40"
+          >
+            →
+          </button>
+        </div>
+      )}
+    </div>
+  </section>
+);
 
-            {/* NEXT */}
-            <button
-              disabled={page === totalPages}
-              onClick={() => setPage((p) => p + 1)}
-              className="h-12 w-12 rounded-full border disabled:opacity-40"
-            >
-              →
-            </button>
-          </div>
-        )}
-      </div>
-    </section>
-  );
 }

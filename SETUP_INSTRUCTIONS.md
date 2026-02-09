@@ -50,3 +50,6 @@ Both pages will fetch listings from the Bridge API using the configured credenti
 - Restart your Next.js development server after creating/updating `.env.local`
 - The API uses OData format with access tokens in query parameters
 
+
+
+

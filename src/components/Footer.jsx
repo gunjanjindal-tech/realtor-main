@@ -20,8 +20,8 @@ export default function Footer() {
 
           {/* BRAND */}
           <div className="lg:col-span-2">
-            <h3 className="text-2xl font-extrabold text-white tracking-wide">
-              THE<span className="text-red-500">REALTOR</span>
+            <h3 className="text-2xl font-extrabold text-red-500  tracking-wide">
+           BANSAL .
             </h3>
 
             <p className="mt-6 max-w-md text-sm leading-relaxed">
