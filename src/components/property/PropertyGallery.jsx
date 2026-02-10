@@ -9,60 +9,78 @@ export default function PropertyGallery({ images = [] }) {
   // Use only real images from API/listing; no demo images
   const gallery = images.length > 0 ? images : [PLACEHOLDER_IMAGE];
   const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const next = () =>
+    setActiveIndex((prev) => (prev === gallery.length - 1 ? 0 : prev + 1));
+
+  const prev = () =>
+    setActiveIndex((prev) => (prev === 0 ? gallery.length - 1 : prev - 1));
 
   return (
     <>
-      {/* DESKTOP GALLERY */}
-      {/* HEADER TRANSPARENT SUPPORT STRIP */}
-        <div className="absolute top-0 left-0 w-full h-20 bg-[#0A1F44] " />
+      {/* TOP STRIP FOR TRANSPARENT HEADER */}
+      <div className="absolute top-0 left-0 w-full h-20 bg-[#0A1F44]" />
+
+      {/* DESKTOP */}
       <section className="hidden md:block relative mt-[96px]">
-
-        <div className="max-w-[1800px] mx-auto px-2 ">
-          
-          {/* FIXED HEIGHT SECTION */}
-          <div className="grid grid-cols-4 gap-2 h-[520px] ">
-
+        <div className="max-w-[1800px] mx-auto px-2">
+          <div className="grid grid-cols-4 gap-2 h-[520px]">
+            
             {/* MAIN IMAGE */}
             <div className="col-span-2 h-full rounded-lg overflow-hidden">
               <img
                 src={gallery[0]}
                 alt="Property"
-                className="w-full h-full object-cover"
+                onClick={() => {
+                  setActiveIndex(0);
+                  setOpen(true);
+                }}
+                className="w-full h-full object-cover cursor-pointer"
               />
             </div>
 
             {/* SIDE IMAGES */}
             <div className="col-span-2 grid grid-cols-2 grid-rows-2 gap-2 h-full">
-              {gallery.slice(1, 5).map((img, i) => (
-                <div
-                  key={i}
-                  className="h-full w-full rounded-lg overflow-hidden relative"
-                >
-                  <img
-                    src={img}
-                    alt="Property"
-                    className="w-full h-full object-cover"
-                  />
+              {gallery.slice(1, 5).map((img, i) => {
+                const realIndex = i + 1;
+                return (
+                  <div
+                    key={i}
+                    className="h-full w-full rounded-lg overflow-hidden relative"
+                  >
+                    <img
+                      src={img}
+                      alt="Property"
+                      onClick={() => {
+                        setActiveIndex(realIndex);
+                        setOpen(true);
+                      }}
+                      className="w-full h-full object-cover cursor-pointer"
+                    />
 
-                  {i === 3 && (
-                    <button
-                      onClick={() => setOpen(true)}
-                      className="absolute inset-0 bg-black/50 flex items-center justify-center text-white text-sm font-semibold hover:bg-black/60 transition"
-                    >
-                      View All Photos
-                    </button>
-                  )}
-                </div>
-              ))}
+                    {i === 3 && (
+                      <button
+                        onClick={() => {
+                          setActiveIndex(realIndex);
+                          setOpen(true);
+                        }}
+                        className="absolute inset-0 bg-black/50 flex items-center justify-center text-white text-sm font-semibold hover:bg-black/60 transition"
+                      >
+                        View All Photos
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-
           </div>
         </div>
       </section>
 
-      {/* MOBILE */}
-      <section className="md:hidden mt-6">
-        <div className="flex gap-4 overflow-x-auto snap-x snap-mandatory px-4">
+      {/* MOBILE SLIDER */}
+      <section className="md:hidden mt-22">
+        <div className="flex gap-4 overflow-x-auto snap-x snap-mandatory px-2">
           {gallery.map((img, i) => (
             <div
               key={i}
@@ -71,6 +89,10 @@ export default function PropertyGallery({ images = [] }) {
               <img
                 src={img}
                 alt="Property"
+                onClick={() => {
+                  setActiveIndex(i);
+                  setOpen(true);
+                }}
                 className="w-full h-full object-cover"
               />
             </div>
@@ -78,25 +100,43 @@ export default function PropertyGallery({ images = [] }) {
         </div>
       </section>
 
-      {/* FULLSCREEN MODAL */}
+      {/* FULLSCREEN VIEWER */}
       {open && (
-        <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center">
+        <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center">
+          
+          {/* Close */}
           <button
             onClick={() => setOpen(false)}
-            className="absolute top-6 right-6 text-white"
+            className="absolute top-6 right-6 text-white text-xl"
           >
-            ✕ Close
+            ✕
           </button>
 
-          <div className="max-w-6xl w-full px-6 grid grid-cols-1 md:grid-cols-2 gap-6 overflow-y-auto max-h-[90vh]">
-            {gallery.map((img, i) => (
-              <img
-                key={i}
-                src={img}
-                alt="Property"
-                className="w-full rounded-lg object-cover"
-              />
-            ))}
+          {/* Prev */}
+          <button
+            onClick={prev}
+            className="absolute left-6 text-white text-4xl"
+          >
+            ‹
+          </button>
+
+          {/* Image */}
+          <img
+            src={gallery[activeIndex]}
+            className="max-h-[85vh] max-w-[90vw] object-contain rounded-lg"
+          />
+
+          {/* Next */}
+          <button
+            onClick={next}
+            className="absolute right-6 text-white text-4xl"
+          >
+            ›
+          </button>
+
+          {/* Counter */}
+          <div className="absolute bottom-6 text-white text-sm">
+            {activeIndex + 1} / {gallery.length}
           </div>
         </div>
       )}

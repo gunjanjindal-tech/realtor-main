@@ -2,7 +2,6 @@
 
 import { MapPin, Share2 } from "lucide-react";
 
-
 export default function PropertyHeader({ listing }) {
   if (!listing) return null;
 
@@ -33,9 +32,10 @@ export default function PropertyHeader({ listing }) {
         <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-8">
         
           <div>
-            <h1 className="text-3xl lg:text-4xl font-extrabold text-[#0A1F44] leading-tight">
+            <h1 className=" text-2xl md:text-3xl lg:text-4xl font-extrabold text-[#0A1F44] leading-tight">
               {listing.UnparsedAddress || "Property Address"}
             </h1>
+         
 
             <div className="mt-2 flex items-center gap-2 text-gray-600">
               <MapPin size={16} />
@@ -48,21 +48,43 @@ export default function PropertyHeader({ listing }) {
               ${Number(listing.ListPrice).toLocaleString()}
             </p>
 
-            <div className="mt-3 h-[3px] w-16 bg-red-600 rounded-full" />
+           
+        
+
+         {/* SHARE – mobile & tablet */}
+            <button
+              onClick={handleShare}
+              className="
+                mt-4
+                inline-flex items-center gap-1.5
+                rounded-full border
+                px-3 py-1.5
+                text-xs sm:text-sm
+                text-[#0A1F44]
+                hover:bg-[#0A1F44] hover:text-white
+                transition
+                lg:hidden
+              "
+            >
+              <Share2 size={14} />
+              Share
+            </button>
+
+   
           </div>
 
-          {/* 🔥 SHARE BUTTON WITH HOVER */}
+          {/* SHARE – desktop */}
           <button
             onClick={handleShare}
             className="
-              flex items-center gap-2
+              hidden lg:inline-flex
+              items-center gap-2
               rounded-full border
-              px-5 py-2 text-sm
-              cursor-pointer
+              px-4 py-2
+              text-sm
               text-[#0A1F44]
-              hover:bg-[#0A1F44]
-              hover:text-white
-              transition-colors duration-200
+              hover:bg-[#0A1F44] hover:text-white
+              transition
             "
           >
             <Share2 size={16} />

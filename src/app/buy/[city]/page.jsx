@@ -58,7 +58,7 @@ export default function CityBuyPage() {
       {/* BREADCRUMBS */}
       <section className="bg-white px-6">
         <div className="max-w-[1600px] mx-auto px-6 pt-6">
-          <Breadcrumbs city={city} />
+         
         </div>
       </section>
 
