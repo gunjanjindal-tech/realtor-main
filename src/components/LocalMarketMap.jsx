@@ -30,14 +30,14 @@ export default function LocalMarketMap() {
 
         {/* RIGHT MAP */}
         <div className="relative overflow-hidden rounded-2xl shadow-2xl">
-          <iframe
-            title="Nova Scotia Map"
-            src="https://www.google.com/maps?q=Nova%20Scotia,%20Canada&z=6&output=embed"
-            className="h-[420px] w-full border-0"
-            loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
-          />
-        </div>
+  <iframe
+    title="Office Location Map"
+    src="https://www.google.com/maps?q=19%20Alma%20Crescent%20Suite%20203%20Halifax%20NS%20B3N%202C4&z=15&output=embed"
+    className="h-[420px] w-full border-0"
+    loading="lazy"
+    referrerPolicy="no-referrer-when-downgrade"
+  />
+</div>
 
       </div>
     </section>

@@ -15,9 +15,9 @@ export default function Hero() {
   };
 
   return (
-    <section className="relative h-screen overflow-hidden">
+    <section className="relative min-h-[100svh] overflow-hidden">
 
-      {/* Background Video - preload metadata only for faster initial load */}
+      {/* Background Video */}
       <video
         className="absolute inset-0 h-full w-full object-cover"
         src="/videos/nova-scotia.mp4"
@@ -28,48 +28,97 @@ export default function Hero() {
         preload="metadata"
       />
 
-      {/* Cinematic Overlay */}
+      {/* Overlay */}
       <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/40 to-black/60" />
 
       {/* Content */}
-      <div className="relative z-10 flex h-full flex-col items-center justify-center px-6 text-center text-white">
+      <div
+        className="
+          relative z-10 flex min-h-[100svh] flex-col items-center justify-center
+          px-6 pt-[env(safe-area-inset-top)]
+          text-center text-white
+        "
+      >
+        {/* Heading */}
+        <div className="relative mt-16 sm:mt-20 md:mt-0 animate-slide-right-luxury">
+          <div className="absolute -inset-4 rounded-3xl backdrop-blur-2xl" />
 
-        {/* Glass Floating Heading */}
-        <div className="animate-slide-right-luxury relative">
-
-          {/* Blue glass outline */}
-          <div className="absolute -inset-4 rounded-3xl   backdrop-blur-2xl" />
-
-          <h1 className="relative text-5xl md:text-6xl font-bold leading-tight tracking-tight drop-shadow-[0_10px_40px_rgba(0,0,0,0.7)]">
+          <h1
+            className="
+              relative font-bold tracking-tight leading-tight
+              text-[34px]
+              sm:text-4xl
+              md:text-5xl
+              lg:text-6xl
+              drop-shadow-[0_10px_40px_rgba(0,0,0,0.7)]
+            "
+          >
             Make Your Move to Nova Scotia
           </h1>
         </div>
 
         {/* Subheading */}
-        <p className="animate-fade-up-luxury delay-200 mt-7 max-w-2xl text-lg md:text-xl text-white/90">
+        <p
+          className="
+            mt-6 sm:mt-7
+            max-w-[90%]
+            sm:max-w-xl
+            md:max-w-2xl
+            text-sm
+            sm:text-base
+            md:text-lg
+            lg:text-xl
+            text-white/90
+            animate-fade-up-luxury delay-200
+          "
+        >
           Discover homes, communities, and opportunities across Nova Scotia.
         </p>
 
         {/* Search */}
         <form
           onSubmit={handleSearch}
-          className="animate-fade-up-luxury delay-400 mt-14 flex w-full max-w-3xl overflow-hidden rounded-full bg-white/90 backdrop-blur-2xl shadow-2xl"
+          className="
+            mt-10 sm:mt-12 md:mt-14
+            flex w-full
+            max-w-[95%]
+            sm:max-w-xl
+            md:max-w-2xl
+            lg:max-w-3xl
+            overflow-hidden rounded-full
+            bg-white/90 backdrop-blur-2xl
+            shadow-2xl
+            animate-fade-up-luxury delay-400
+          "
         >
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search homes by city, address, or MLS® number"
-            className="flex-1 bg-transparent px-6 py-4 text-black outline-none placeholder:text-gray-500"
+            className="
+              flex-1 bg-transparent
+              px-4 sm:px-6
+              py-4
+              text-sm sm:text-base
+              text-black outline-none
+              placeholder:text-gray-500
+            "
           />
+
           <button
             type="submit"
-            className="bg-[#091D35] px-10 text-white font-semibold transition hover:bg-[#0c2a4d]"
+            className="
+              bg-[#091D35]
+              px-6 sm:px-8 md:px-10
+              text-sm sm:text-base
+              font-semibold text-white
+              transition hover:bg-[#0c2a4d]
+            "
           >
             Search
           </button>
         </form>
-
       </div>
     </section>
   );

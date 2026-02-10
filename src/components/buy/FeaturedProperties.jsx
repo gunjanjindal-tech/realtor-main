@@ -10,102 +10,81 @@ export default function FeaturedProperties({ city, filters = {} }) {
   const [listings, setListings] = useState([]);
   const [total, setTotal] = useState(0);
 
-  const limit = 9;
+const [limit, setLimit] = useState(9);
 
-  /* ---------------- RESET PAGE WHEN FILTERS CHANGE ---------------- */
-  useEffect(() => {
-    setPage(1);
-  }, [filters.minPrice, filters.maxPrice, filters.minBeds, filters.minBaths]);
+/* -------- RESET PAGE WHEN FILTERS CHANGE -------- */
+useEffect(() => {
+  setPage(1);
+}, [filters.minPrice, filters.maxPrice, filters.minBeds, filters.minBaths]);
 
-  /* ---------------- FETCH LISTINGS ---------------- */
-  useEffect(() => {
-    async function fetchListings() {
-      try {
-        // Build query parameters
-        const params = new URLSearchParams({
-          page: page.toString(),
-          limit: limit.toString(),
-        });
+/* -------- RESPONSIVE LIMIT -------- */
+useEffect(() => {
+  let timeout;
 
-        // Add city filter
-        if (city) {
-          params.append("city", city);
-        }
+  function updateLimit() {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => {
+      const width = window.innerWidth;
 
-        // Add filters
-        if (filters.minPrice) params.append("minPrice", filters.minPrice);
-        if (filters.maxPrice) params.append("maxPrice", filters.maxPrice);
-        if (filters.minBeds) params.append("minBeds", filters.minBeds);
-        if (filters.minBaths) params.append("minBaths", filters.minBaths);
+      if (width < 640) setLimit(6);
+      else if (width < 1024) setLimit(8);
+      else setLimit(9);
+    }, 150);
+  }
 
-        console.log("🔍 [CITY PAGE] Fetching with filters:", Object.fromEntries(params));
+  updateLimit();
+  window.addEventListener("resize", updateLimit);
 
-        const res = await fetch(`/api/bridge/buy?${params}`);
+  return () => window.removeEventListener("resize", updateLimit);
+}, []);
 
-        if (!res.ok) {
-          // Try to parse error as JSON, but handle HTML responses
-          let errorData = { error: `HTTP ${res.status}: ${res.statusText}` };
-          const contentType = res.headers.get("content-type");
-          
-          try {
-            if (contentType?.includes("application/json")) {
-              errorData = await res.json();
-            } else {
-              const text = await res.text();
-              console.error("❌ API returned HTML instead of JSON:", text.substring(0, 200));
-              errorData = { error: `Server returned ${contentType || "HTML"} instead of JSON` };
-            }
-          } catch (parseError) {
-            console.error("❌ Failed to parse error response:", parseError);
-          }
-          
-          console.error("❌ API Error Response:", {
-            status: res.status,
-            statusText: res.statusText,
-            contentType,
-            error: errorData,
-          });
-          setListings([]);
-          setTotal(0);
-          return;
-        }
 
-        // Verify response is JSON before parsing
-        const contentType = res.headers.get("content-type");
-        if (!contentType?.includes("application/json")) {
-          const text = await res.text();
-          console.error("❌ API returned non-JSON response:", {
-            contentType,
-            preview: text.substring(0, 200),
-          });
-          setListings([]);
-          setTotal(0);
-          return;
-        }
+/* -------- RESET PAGE WHEN LIMIT CHANGES -------- */
+useEffect(() => {
+  setPage((p) => (p !== 1 ? 1 : p));
+}, [limit]);
 
-        const data = await res.json();
-        console.log("📊 Frontend received data:", {
-          city: city || "all cities",
-          hasListings: !!data.listings,
-          hasBundle: !!data.bundle,
-          listingsCount: data.listings?.length || 0,
-          bundleCount: data.bundle?.length || 0,
-          total: data.total,
-        });
 
-        setListings(data.listings || data.bundle || []);
-        setTotal(data.total || 0);
-      } catch (err) {
-        console.error("❌ Failed to fetch listings", err);
+/* -------- FETCH LISTINGS -------- */
+useEffect(() => {
+  async function fetchListings() {
+    try {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+      });
+
+      if (city) params.append("city", city);
+
+      if (filters.minPrice) params.append("minPrice", filters.minPrice);
+      if (filters.maxPrice) params.append("maxPrice", filters.maxPrice);
+      if (filters.minBeds) params.append("minBeds", filters.minBeds);
+      if (filters.minBaths) params.append("minBaths", filters.minBaths);
+
+      const res = await fetch(`/api/bridge/buy?${params}`);
+
+      if (!res.ok) {
         setListings([]);
         setTotal(0);
+        return;
       }
+
+      const data = await res.json();
+
+      setListings(data.listings || data.bundle || []);
+      setTotal(data.total || 0);
+    } catch (err) {
+      console.error("Fetch error:", err);
+      setListings([]);
+      setTotal(0);
     }
+  }
 
-    fetchListings();
-  }, [page, city, filters.minPrice, filters.maxPrice, filters.minBeds, filters.minBaths]);
+  fetchListings();
+}, [page, city, limit, filters.minPrice, filters.maxPrice, filters.minBeds, filters.minBaths]);
 
-  const totalPages = Math.ceil(total / limit);
+const totalPages = Math.ceil(total / limit);
+
 
   /* ---------------- SCROLL CONTROL ---------------- */
   const scrollToTop = () => {
@@ -121,22 +100,25 @@ export default function FeaturedProperties({ city, filters = {} }) {
   const endPage = Math.min(totalPages, startPage + maxButtons - 1);
 
 return (
-  <section ref={topRef} className="bg-white py-14 sm:py-16">
-    <div className="max-w-[1600px] mx-auto px-4 sm:px-6">
+  <section ref={topRef} className="bg-white  pt-14 sm:pb-7 lg:pb-14">
+    <div className="max-w-[1600px] mx-auto px-4">
 
       {/* HEADER */}
       <div className="mb-10 sm:mb-14">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-[#091D35]">
-            Featured Properties
-          </h2>
+  <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-[#091D35]">
+    Featured Properties
+  </h2>
 
-          <span className="text-sm text-gray-500">
-            Showing {listings.length} of {total}
-          </span>
-        </div>
+  <span className="text-sm text-gray-500">
+    Showing {listings.length} of {total}
+  </span>
+</div>
 
-        <div className="mt-4 h-[3px] w-20 bg-red-600 rounded-full" />
+<div className="mt-4 h-[3px] w-20 bg-red-600 rounded-full" />
+
+
+      
       </div>
 
       {/* LISTINGS */}
@@ -145,8 +127,8 @@ return (
       ) : (
         <>
           {/* MOBILE: horizontal scroll */}
-          <div className="sm:hidden -mx-4 px-4">
-            <div className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4">
+          <div className="sm:hidden -mx-6 px-6">
+            <div className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 scrollbar-hide">
               {listings.map((item) => (
                 <div
                   key={item.ListingId || item.Id}
@@ -159,7 +141,7 @@ return (
           </div>
 
           {/* DESKTOP GRID */}
-          <div className="hidden sm:grid grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-10">
+          <div className="hidden sm:grid grid-cols-2 lg:grid-cols-3 gap-10">
             {listings.map((item) => (
               <PropertyCard
                 key={item.ListingId || item.Id}

@@ -6,7 +6,6 @@ import { Phone, X, Calendar, Search } from "lucide-react";
 
 export default function FullMenu({ close }) {
 
-  /* 🔒 LOCK BODY SCROLL */
   useEffect(() => {
     document.body.style.overflow = "hidden";
     return () => {
@@ -25,33 +24,30 @@ export default function FullMenu({ close }) {
 
   return (
     <>
-      {/* ===== OVERLAY ===== */}
+      {/* OVERLAY */}
       <button
         aria-label="Close menu overlay"
         onClick={close}
         className="fixed inset-0 z-40 bg-black/40"
       />
 
-      {/* ===== MENU WRAPPER ===== */}
+      {/* MENU WRAPPER */}
       <div className="fixed inset-0 z-50 flex justify-center px-3 sm:px-6 pt-3 sm:pt-6">
         <div className="relative w-full max-w-[1600px] h-full max-h-[92vh] rounded-3xl bg-[#071C34] text-white shadow-2xl flex flex-col overflow-hidden">
 
-          {/* ================= TOP BAR ================= */}
+          {/* TOP BAR */}
           <div className="flex items-center justify-between px-5 sm:px-10 py-5 border-b border-white/10">
 
-            {/* LOGO */}
             <Link
               href="/"
               onClick={close}
-              className="text-xl sm:text-2xl font-extrabold text-red-500 tracking-wide"
+              className="text-lg sm:text-2xl font-extrabold text-red-500 tracking-wide"
             >
               BANSAL .
             </Link>
 
-            {/* RIGHT ACTIONS */}
             <div className="flex items-center gap-2 sm:gap-4">
 
-              {/* PHONE */}
               <a
                 href="tel:19023995007"
                 className="hidden md:flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm hover:bg-white/20 transition"
@@ -60,7 +56,6 @@ export default function FullMenu({ close }) {
                 902-399-5007
               </a>
 
-              {/* SCHEDULE */}
               <Link
                 href="https://akshay42hj.setmore.com"
                 target="_blank"
@@ -71,7 +66,6 @@ export default function FullMenu({ close }) {
                 Schedule
               </Link>
 
-              {/* FIND HOME */}
               <Link
                 href="/buy"
                 onClick={close}
@@ -81,7 +75,6 @@ export default function FullMenu({ close }) {
                 Find a Home
               </Link>
 
-              {/* CLOSE */}
               <button
                 onClick={close}
                 className="rounded-full border border-white/20 p-2 hover:bg-white/10 transition"
@@ -91,24 +84,26 @@ export default function FullMenu({ close }) {
             </div>
           </div>
 
-          {/* ================= CONTENT ================= */}
-          <div className="flex-1 overflow-y-auto px-5 sm:px-10 lg:px-12 py-14">
-
+          {/* CONTENT */}
+          <div className="flex-1 overflow-y-auto px-5 sm:px-10 lg:px-12 py-12 sm:py-14">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-16">
 
               {/* LEFT IMAGE */}
               <div className="hidden lg:flex items-center justify-center">
-                <div className="h-[420px] w-[320px] rounded-2xl bg-white/10 flex items-center justify-center text-white/40 text-sm">
-                   <img
-                  src="/images/founder.png"
-                  alt="Akshay Bansal - Realtor"
-                  className="h-full w-full object-contain"
-                />
+                <div className="h-[420px] w-[320px] rounded-2xl bg-white/10 overflow-hidden">
+                  <img
+                    src="/images/founder.png"
+                    alt="Akshay Bansal - Realtor"
+                    className="h-full w-full object-contain"
+                  />
                 </div>
               </div>
 
-              {/* MAIN NAV */}
-              <div className="flex flex-col justify-center space-y-7 text-3xl sm:text-[34px] font-semibold">
+              {/* MAIN NAV (FIXED TEXT SIZE) */}
+              <div className="flex flex-col justify-center space-y-6
+                text-xl sm:text-2xl md:text-[28px] lg:text-[34px]
+                font-semibold leading-tight"
+              >
                 {mainLinks.map((item) => (
                   <Link
                     key={item.label}
@@ -125,9 +120,9 @@ export default function FullMenu({ close }) {
               </div>
 
               {/* RIGHT LINKS */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-14 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-12 text-sm">
 
-                {/* COMMUNITIES */}
+               {/* COMMUNITIES */}
                 <div className="sm:col-span-2">
                   <p className="mb-4 text-xs uppercase tracking-widest text-white/50">
                     Community Listings
@@ -135,39 +130,44 @@ export default function FullMenu({ close }) {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-3 text-white/80">
                     {[
-                      "Halifax Real Estate",
-                      "Bedford Real Estate",
-                      "Dartmouth Real Estate",
-                      "Sackville Real Estate",
-                      "Clayton Park Real Estate",
-                      "Fall River Real Estate",
-                    ].map((c) => (
-                      <Link
-                        key={c}
-                        href="/communities"
-                        onClick={close}
-                        className="hover:text-white hover:underline underline-offset-2 transition"
-                      >
-                        {c}
-                      </Link>
-                    ))}
+  "Halifax Real Estate",
+  "Bedford Real Estate",
+  "Dartmouth Real Estate",
+  "Forest Hills Real Estate",
+  "Cole Harbour Real Estate",
+  "Timberlea Real Estate",
+  "Spryfield Real Estate",
+  "Hammonds Plains Real Estate",
+  "Purcell’s Cove Real Estate",
+  "Sackville Real Estate",
+  "Clayton Park Real Estate",
+  "Fall River Real Estate",
+].map((c) => {
+  const city = c.replace(" Real Estate", "");
+  const slug = city.toLowerCase().replace(/\s+/g, "-");
+
+  return (
+    <Link
+      key={c}
+      href={`/buy/${slug}`}
+      onClick={close}
+      className="hover:text-white hover:underline underline-offset-2 transition"
+    >
+      {c}
+    </Link>
+  );
+})}
+
                   </div>
 
-                  <Link
-                    href="/communities"
-                    onClick={close}
-                    className="inline-block mt-4 text-xs font-medium text-white underline"
-                  >
-                    View All Communities →
-                  </Link>
+               
                 </div>
-
                 {/* CONTACT */}
                 <div>
                   <p className="mb-4 text-xs uppercase tracking-widest text-white/50">
                     Contact
                   </p>
-                  <ul className="space-y-2 text-white/80">
+                  <ul className="space-y-2 text-white/80 text-sm">
                     <li><a href="tel:19023995007">902-399-5007</a></li>
                     <li><a href="mailto:akshay@remaxnova.ca">akshay@remaxnova.ca</a></li>
                     <li>Nova Scotia, Canada</li>
@@ -179,7 +179,7 @@ export default function FullMenu({ close }) {
                   <p className="mb-4 text-xs uppercase tracking-widest text-white/50">
                     Legal
                   </p>
-                  <ul className="space-y-2 text-white/80">
+                  <ul className="space-y-2 text-white/80 text-sm">
                     <li><Link href="/privacy-policy" onClick={close}>Privacy Policy</Link></li>
                     <li><Link href="/cookies-policy" onClick={close}>Cookies Policy</Link></li>
                     <li><Link href="/terms-of-use" onClick={close}>Terms of Use</Link></li>

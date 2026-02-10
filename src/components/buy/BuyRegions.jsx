@@ -169,7 +169,7 @@ export default function BuyRegions({ onSelectCity }) {
           </div>
 
           {/* RIGHT GRID */}
-          <div className="grid grid-cols-2 xl:grid-cols-3 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
             {REGIONS.map((region) => (
               <button
                 key={region.name}

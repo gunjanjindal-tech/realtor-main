@@ -64,19 +64,22 @@ export default function FeaturedProperties({ city }) {
       <div className="max-w-[1600px] mx-auto px-6">
 
         {/* HEADER */}
-        <div className="mb-14">
-          <div className="flex items-end justify-between">
-            <h2 className="text-4xl md:text-5xl font-extrabold leading-tight text-[#091D35]">
-              New Developments
-            </h2>
+       <div className="mb-10 sm:mb-14">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+  <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-[#091D35]">
+    Featured Properties
+  </h2>
 
-            <span className="text-sm text-gray-500">
-              {loading ? "Loading..." : `Showing ${listings.length} of ${total}`}
-            </span>
-          </div>
+  <span className="text-sm text-gray-500">
+    Showing {listings.length} of {total}
+  </span>
+</div>
 
-          <div className="mt-4 h-[3px] w-20 bg-red-600 rounded-full" />
-        </div>
+<div className="mt-4 h-[3px] w-20 bg-red-600 rounded-full" />
+
+      
+      </div>
+
 
         {/* GRID */}
         {loading ? (
@@ -89,15 +92,36 @@ export default function FeaturedProperties({ city }) {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10">
-              {listings.map((listing) => (
-                <PropertyCard
-                  key={listing.ListingId || listing.Id}
-                  listing={listing}
-                  listingType="newDevelopment"
-                />
-              ))}
-            </div>
+        <>
+  {/* MOBILE SCROLL */}
+  <div className="sm:hidden -mx-6 px-6">
+    <div className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 scrollbar-hide">
+      {listings.map((listing) => (
+        <div
+          key={listing.ListingId || listing.Id}
+          className="snap-start min-w-[280px]"
+        >
+          <PropertyCard
+            listing={listing}
+            listingType="newDevelopment"
+          />
+        </div>
+      ))}
+    </div>
+  </div>
+
+  {/* DESKTOP GRID */}
+  <div className="hidden sm:grid grid-cols-2 lg:grid-cols-3 gap-10">
+    {listings.map((listing) => (
+      <PropertyCard
+        key={listing.ListingId || listing.Id}
+        listing={listing}
+        listingType="newDevelopment"
+      />
+    ))}
+  </div>
+</>
+
 
             {/* 🔥 BUY STYLE PAGINATION (SAME AS BUY PAGE) */}
             {totalPages > 1 && (

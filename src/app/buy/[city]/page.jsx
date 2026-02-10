@@ -64,7 +64,7 @@ export default function CityBuyPage() {
 
      {/* LISTINGS */}
 <section className="bg-white py-12">
-  <div className="max-w-[1600px] mx-auto px-6 ">
+  <div className="max-w-[1600px] px-6 ">
 
     {/* HEADER ROW */}
 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8 px-6 bg-gray-50 py-6 rounded-lg mb-10">
@@ -75,7 +75,7 @@ export default function CityBuyPage() {
       Homes for Sale in {city}
     </h2>
 
-    <div className="mt-3 h-[3px] w-24 bg-red-600 rounded-full" />
+    <div className="mt-3 h-[3px] w-24 bg-red-600 rounded-full " />
 
     <p className="mt-4 text-sm md:text-base text-gray-700">
       Verified MLS listings, local market insight, and expert guidance — all in one place.
@@ -98,6 +98,8 @@ export default function CityBuyPage() {
 </div>
 
 
+
+          
 
 
 

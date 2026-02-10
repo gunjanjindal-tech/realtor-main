@@ -1,7 +1,7 @@
 "use client";
 
 import { MapPin, Share2 } from "lucide-react";
-import Breadcrumbs from "../common/Breadcrumbs";
+
 
 export default function PropertyHeader({ listing }) {
   if (!listing) return null;
@@ -27,8 +27,8 @@ export default function PropertyHeader({ listing }) {
 
   return (
     <section className="bg-white border-b">
-      <div className="max-w-[1400px] mx-auto pt-6 pb-6">
- <Breadcrumbs lastLabel={listing.UnparsedAddress} />
+      <div className="max-w-[1400px] mx-auto pt-12 pb-6">
+
 
         <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-8">
         

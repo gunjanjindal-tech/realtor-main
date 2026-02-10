@@ -85,8 +85,8 @@ export default function PropertyListingsMapClient({ listings = [], mapCenter, on
   if (validListings.length === 0) {
     return (
       <div className="h-full w-full flex flex-col items-center justify-center text-gray-500">
-        <p className="text-lg font-medium">No property locations available</p>
-        <p className="text-sm mt-2">Bridge API coordinates not found</p>
+        <p className="text-lg font-medium">Loading Property Locations ...</p>
+        <p className="text-sm mt-2">Loading Bridge API Coordinates</p>
       </div>
     );
   }
