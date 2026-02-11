@@ -73,6 +73,9 @@ export default function PropertyCard({ listing, showNewDevelopmentBadge = false,
       <Link
         href={`/buy/${citySlug}/${listingId}`}
         className="group rounded-2xl overflow-hidden bg-white shadow-md hover:shadow-2xl transition block"
+        onMouseEnter={() => {
+          if (listingId) fetch(`/api/bridge/property/${listingId}`).catch(() => {});
+        }}
       >
       {/* IMAGE */}
       <div className="relative aspect-[16/10] overflow-hidden bg-gray-100">

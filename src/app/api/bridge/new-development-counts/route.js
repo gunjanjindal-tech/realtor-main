@@ -51,7 +51,9 @@ export async function GET() {
       }
 
       console.log("✅ [NEW-DEV-COUNTS] Counts calculated:", counts);
-      return Response.json(counts);
+      return Response.json(counts, {
+        headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" },
+      });
     } catch (listingsError) {
       // If Listings fails or YearBuilt filter fails, try Properties endpoint
       if (listingsError.message.includes("404") || 
@@ -97,7 +99,9 @@ export async function GET() {
           }
           
           console.log("✅ [NEW-DEV-COUNTS] Counts calculated (without YearBuilt):", counts);
-          return Response.json(counts);
+          return Response.json(counts, {
+            headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" },
+          });
         } catch (listingsSimpleError) {
           // Try Properties endpoint
           if (listingsSimpleError.message.includes("404") || listingsSimpleError.message.includes("Invalid resource")) {
@@ -129,7 +133,9 @@ export async function GET() {
             }
             
             console.log("✅ [NEW-DEV-COUNTS] Counts calculated (Properties endpoint):", counts);
-            return Response.json(counts);
+            return Response.json(counts, {
+              headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" },
+            });
           } else {
             throw listingsSimpleError;
           }

@@ -1,19 +1,23 @@
 import { Geist, Geist_Mono } from "next/font/google";
+import dynamic from "next/dynamic";
 import "./globals.css";
 import Header from "@/components/Header";
-import Footer from "@/components/Footer";
-import CookieBanner from "@/components/CookieBanner";
-import AnalyticsLoader from "@/components/AnalyticsLoader";
-import AccessibilityWidget from "@/components/AccessibilityWidget";
+
+const Footer = dynamic(() => import("@/components/Footer"), { ssr: true });
+const CookieBanner = dynamic(() => import("@/components/CookieBanner"), { ssr: true });
+const AnalyticsLoader = dynamic(() => import("@/components/AnalyticsLoader"), { ssr: true });
+const AccessibilityWidget = dynamic(() => import("@/components/AccessibilityWidget"), { ssr: true });
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
+  display: "swap",
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata = {

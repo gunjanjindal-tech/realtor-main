@@ -75,5 +75,20 @@
   display: none;             /* Chrome, Safari */
 }
 
+/* Listings map: price bubble on markers (e.g. "800K") – wrapper must not clip */
+.property-price-marker {
+  background: transparent !important;
+  border: none !important;
+  overflow: visible !important;
+  z-index: 600 !important;
+}
+
+/* Agal bagal: small grey labels for nearby address numbers from OSM */
+.nearby-number-marker {
+  background: transparent !important;
+  border: none !important;
+  z-index: 100 !important;
+}
+
 
 

@@ -85,10 +85,14 @@ export async function GET(req) {
     // OData standard: @odata.count contains total count
     const total = data["@odata.count"] || data["@count"] || data.total || listings.length;
 
-    return Response.json({
-      listings,
-      total,
-    });
+    return Response.json(
+      { listings, total },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
+        },
+      }
+    );
   } catch (err) {
     const errorMessage = err.message || "Failed to fetch listings";
     const is404 = errorMessage.includes("404") || errorMessage.includes("Invalid resource");

@@ -45,41 +45,23 @@ export async function GET(req, { params }) {
 
     const listing = listings[0];
 
-    // Try to fetch property/sale history from separate Bridge resource (ListingHistory / PropertyHistory)
-    // Many MLS expose history only via a separate resource; filter by ListingKey or ListingId.
+    // History: try only ListingHistory once for speed (no long loop of resources)
     let historyFromApi = [];
-    const listingKey = listing.ListingKey ?? listing.ListingId ?? listing.Id ?? listingId;
-    const keyStr = String(listingKey).replace(/'/g, "''");
-    const historyFilters = [
-      `ListingId eq '${keyStr}'`,
-      `ListingKey eq '${keyStr}'`,
-      `ListingKey eq '${listing.ListingKey || listingKey}'`,
-    ];
-    const historyResources = ["ListingHistory", "PropertyHistory", "ListingHistories", "PropertyHistories", "History"];
-    resourceLoop: for (const resource of historyResources) {
-      for (const filter of historyFilters) {
-        try {
-          const histEndpoint = `/${DATASET_ID}/${resource}?$filter=${encodeURIComponent(filter)}&$top=50&$orderby=CloseDate desc`;
-          const histData = await bridgeFetch(histEndpoint);
-          const rows = histData.value ?? histData.bundle ?? histData.results ?? [];
-          if (Array.isArray(rows) && rows.length > 0) {
-            historyFromApi = rows.map((r) => ({
-              ClosePrice: r.ClosePrice ?? r.closePrice ?? r.CloseAmount ?? r.SoldPrice,
-              CloseDate: r.CloseDate ?? r.closeDate ?? r.EventDate ?? r.ClosingDate,
-              EventType: r.EventType ?? r.EventDescription ?? r.Type ?? "Sale",
-              ListPrice: r.ListPrice ?? r.ListPriceClose,
-            })).filter((r) => r.ClosePrice != null || r.CloseDate != null);
-            if (historyFromApi.length > 0) {
-              console.log("✅ [PROPERTY] History from", resource, ":", historyFromApi.length, "rows");
-              break resourceLoop;
-            }
-          }
-        } catch (e) {
-          if (!e.message?.includes("404") && !e.message?.includes("Invalid resource")) {
-            console.log("ℹ️ [PROPERTY] No history from", resource, ":", e.message?.slice(0, 60));
-          }
-        }
+    const keyStr = String(listing.ListingKey ?? listing.ListingId ?? listing.Id ?? listingId).replace(/'/g, "''");
+    try {
+      const histEndpoint = `/${DATASET_ID}/ListingHistory?$filter=ListingId eq '${keyStr}'&$top=50`;
+      const histData = await bridgeFetch(histEndpoint);
+      const rows = histData.value ?? histData.bundle ?? histData.results ?? [];
+      if (Array.isArray(rows) && rows.length > 0) {
+        historyFromApi = rows.map((r) => ({
+          ClosePrice: r.ClosePrice ?? r.closePrice ?? r.CloseAmount ?? r.SoldPrice,
+          CloseDate: r.CloseDate ?? r.closeDate ?? r.EventDate ?? r.ClosingDate,
+          EventType: r.EventType ?? r.EventDescription ?? r.Type ?? "Sale",
+          ListPrice: r.ListPrice ?? r.ListPriceClose,
+        })).filter((r) => r.ClosePrice != null || r.CloseDate != null);
       }
+    } catch (_) {
+      // ListingHistory often not available; skip to keep response fast
     }
 
     // Normalize features that may be string (comma-separated) or array
@@ -175,7 +157,14 @@ export async function GET(req, { params }) {
       PreviousClosePrice: listing.PreviousClosePrice ?? listing.previousClosePrice,
     };
 
-    return Response.json({ listing: listingOut });
+    return Response.json(
+      { listing: listingOut },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
+        },
+      }
+    );
   } catch (err) {
     console.error("❌ Property API Route Error:", err);
     return Response.json(

@@ -25,13 +25,21 @@ export default function BuyFilters({ onApplyFilters, onClose }) {
     setFilters((prev) => ({ ...prev, maxPrice: value.toString() }));
   };
 
+  const resetFilters = {
+    minBeds: "",
+    minBaths: "",
+    minPrice: "",
+    maxPrice: "",
+  };
+
   const handleReset = () => {
-    setFilters({
-      minBeds: "",
-      minBaths: "",
-      minPrice: "",
-      maxPrice: "",
-    });
+    setFilters(resetFilters);
+    if (onApplyFilters) {
+      onApplyFilters(resetFilters);
+    }
+    if (onClose) {
+      onClose();
+    }
   };
 
   const handleApply = () => {

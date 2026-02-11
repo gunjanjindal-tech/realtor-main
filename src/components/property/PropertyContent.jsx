@@ -50,11 +50,6 @@ export default function PropertyContent({ property }) {
         property?.PropertyType && property.PropertyType,
       ].filter(Boolean);
 
-  // Amenities: from API (Amenities array) or combined interior + exterior
-  const amenitiesList = Array.isArray(property?.Amenities) && property.Amenities.length > 0
-    ? property.Amenities
-    : [...interiorItems, ...exteriorItems].filter(Boolean);
-
   // Sale / price history from API
   const saleHistoryRows = property?.SaleHistory ?? [];
   const historyArray = Array.isArray(property?.History) ? property.History : [];
@@ -208,23 +203,6 @@ export default function PropertyContent({ property }) {
                 </ul>
               </div>
             )}
-          </div>
-        </section>
-      )}
-
-      {/* AMENITIES — from API or combined interior + exterior */}
-      {amenitiesList.length > 0 && (
-        <section className="max-w-[1200px]">
-          <SectionTitle title="Amenities" />
-          <div className="mt-10 rounded-2xl bg-[#0A1F44] px-10 py-9">
-            <ul className="flex flex-wrap gap-x-8 gap-y-3 text-sm text-white">
-              {amenitiesList.map((item) => (
-                <li key={item} className="flex items-center gap-2">
-                  <span className="h-[4px] w-[4px] rounded-full bg-white/60 shrink-0" />
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
           </div>
         </section>
       )}

@@ -14,7 +14,9 @@ export async function bridgeFetch(endpoint) {
   const separator = cleanEndpoint.includes("?") ? "&" : "?";
   const url = `${BASE_URL}${cleanEndpoint}${separator}access_token=${SERVER_TOKEN}`;
 
-  console.log("🌐 Bridge API URL:", url.replace(SERVER_TOKEN, "***TOKEN***"));
+  if (process.env.NODE_ENV === "development") {
+    console.log("🌐 Bridge API URL:", url.replace(SERVER_TOKEN, "***TOKEN***"));
+  }
 
   if (!SERVER_TOKEN) {
     throw new Error("BRIDGE_SERVER_TOKEN is not set in environment variables");
@@ -78,15 +80,9 @@ export async function bridgeFetch(endpoint) {
   }
 
   const jsonData = await res.json();
-  console.log("📦 Raw API Response structure:", {
-    keys: Object.keys(jsonData),
-    hasValue: !!jsonData.value, // OData standard
-    hasBundle: !!jsonData.bundle, // Some APIs use this
-    valueLength: jsonData.value?.length || 0,
-    bundleLength: jsonData.bundle?.length || 0,
-    odataCount: jsonData["@odata.count"],
-  });
-
+  if (process.env.NODE_ENV === "development") {
+    console.log("📦 Bridge response:", Object.keys(jsonData).join(", "), "length:", jsonData.value?.length ?? jsonData.bundle?.length ?? 0);
+  }
   return jsonData;
 }
 

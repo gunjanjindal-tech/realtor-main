@@ -9,14 +9,12 @@ export default function FeaturedProperties({ city }) {
   const [page, setPage] = useState(1);
   const [listings, setListings] = useState([]);
   const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
 
   const limit = 9;
 
-  /* ---------------- FETCH LISTINGS ---------------- */
+  /* ---------------- FETCH LISTINGS (no full-screen loading on page change - like Buy) ---------------- */
   useEffect(() => {
     async function fetchListings() {
-      setLoading(true);
       try {
         const res = await fetch(
           `/api/bridge/new-development?page=${page}&limit=${limit}${
@@ -36,8 +34,6 @@ export default function FeaturedProperties({ city }) {
       } catch (err) {
         setListings([]);
         setTotal(0);
-      } finally {
-        setLoading(false);
       }
     }
 
@@ -81,12 +77,8 @@ export default function FeaturedProperties({ city }) {
       </div>
 
 
-        {/* GRID */}
-        {loading ? (
-          <div className="text-center py-20 text-gray-500">
-            Loading new developments...
-          </div>
-        ) : listings.length === 0 ? (
+        {/* GRID - show listings as they load; no full-screen loading on pagination (like Buy) */}
+        {listings.length === 0 ? (
           <div className="text-center py-20 text-gray-500">
             No new developments found
           </div>
