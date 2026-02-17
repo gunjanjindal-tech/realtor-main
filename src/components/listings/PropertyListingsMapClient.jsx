@@ -41,10 +41,6 @@ const Popup = dynamic(
   () => import("react-leaflet").then((mod) => mod.Popup),
   { ssr: false }
 );
-const ZoomControl = dynamic(
-  () => import("react-leaflet").then((mod) => mod.ZoomControl),
-  { ssr: false }
-);
 
 const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
 const OVERPASS_DEBOUNCE_MS = 600;
@@ -124,18 +120,12 @@ function NearbyAddressLayer({ Leaflet, listingPositions }) {
   }, [map, Leaflet, skipSet]);
 
   if (!Leaflet || points.length === 0) return null;
-  const validPoints = points.filter((p) => {
-    const lat = Number(p.lat);
-    const lng = Number(p.lng);
-    return !isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
-  });
-  if (validPoints.length === 0) return null;
   return (
     <>
-      {validPoints.map((p, i) => (
+      {points.map((p, i) => (
         <Marker
           key={`nearby-${p.lat}-${p.lng}-${i}`}
-          position={[Number(p.lat), Number(p.lng)]}
+          position={[p.lat, p.lng]}
           icon={createNearbyNumberIcon(Leaflet, p.number)}
           interactive={false}
           zIndexOffset={0}
@@ -181,21 +171,23 @@ function esc(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-// Home icon + property number – white card with border so it clearly differentiates on map
-const HOME_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="26" viewBox="0 0 24 28" fill="none" stroke="#091d35" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l9-9 9 9"/><path d="M5 10v10a1 1 0 001 1h3v-6h6v6h3a1 1 0 001-1V10"/></svg>`;
-
-function createHomeIconWithNumber(L, numberText) {
-  if (!L?.divIcon) return null;
+// Create marker like reference: property number (1040) big on top, price (800K) smaller below
+function createPriceBubbleIcon(L, numberText, priceText) {
+  if (!L || !L.divIcon) return null;
   const hasNumber = numberText != null && String(numberText).trim() !== "";
   const numEsc = esc(numberText || "");
+  const priceEsc = esc(priceText || "—");
   const html = hasNumber
-    ? `<span class="property-home-marker-wrap"><span class="property-home-marker-inner">${HOME_ICON_SVG}</span><span class="property-home-marker-num">${numEsc}</span></span>`
-    : `<span class="property-home-marker-wrap property-home-marker-icon-only"><span class="property-home-marker-inner">${HOME_ICON_SVG}</span></span>`;
+    ? `<span style="display:inline-flex;flex-direction:column;align-items:center;padding:6px 12px;background:#091d35;color:#fff;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,0.25);line-height:1.2;">
+         <span style="font-size:16px;font-weight:700;letter-spacing:0.02em;">${numEsc}</span>
+         <span style="font-size:11px;font-weight:600;opacity:0.95;">${priceEsc}</span>
+       </span>`
+    : `<span style="display:inline-block;padding:5px 10px;background:#091d35;color:#fff;font-size:12px;font-weight:600;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,0.2);">${priceEsc}</span>`;
   return L.divIcon({
-    className: "property-home-marker",
+    className: "property-price-marker",
     html,
-    iconSize: hasNumber ? [52, 58] : [40, 44],
-    iconAnchor: hasNumber ? [26, 58] : [20, 44],
+    iconSize: hasNumber ? [64, 48] : [56, 32],
+    iconAnchor: hasNumber ? [32, 24] : [28, 16],
   });
 }
 
@@ -260,20 +252,17 @@ export default function PropertyListingsMapClient({ listings = [], mapCenter, on
     <>
       <MapContainer
         center={[mapCenter.lat, mapCenter.lng]}
-        zoom={validListings.length === 1 ? 19 : 12}
-        minZoom={5}
-        maxZoom={20}
-        style={{ height: "100%", width: "100%", minHeight: 300 }}
+        zoom={validListings.length === 1 ? 18 : 10}
+        minZoom={6}
+        maxZoom={19}
+        style={{ height: "100%", width: "100%" }}
         scrollWheelZoom={true}
-        zoomControl={false}
-        wheelPxPerZoomLevel={32}
+        zoomControl={true}
+        wheelPxPerZoomLevel={45}
       >
-        <ZoomControl position="bottomright" />
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          maxZoom={20}
-          maxNativeZoom={19}
         />
         {onBoundsChange && <MapBoundsReporter onBoundsChange={onBoundsChange} />}
         {/* Agal bagal: nearby address numbers from OSM when zoomed in (zoom >= 16) */}
@@ -300,7 +289,7 @@ export default function PropertyListingsMapClient({ listings = [], mapCenter, on
           const citySlug = encodeURIComponent((listing.City || "nova-scotia").toLowerCase().replace(/\s+/g, "-"));
           const detailUrl = `/buy/${citySlug}/${listing.ListingId || listing.Id}`;
 
-          const icon = createHomeIconWithNumber(Leaflet, streetNum);
+          const icon = createPriceBubbleIcon(Leaflet, streetNum, priceShort);
 
           return (
             <Marker
@@ -346,10 +335,10 @@ export default function PropertyListingsMapClient({ listings = [], mapCenter, on
         })}
       </MapContainer>
       
-      {/* Hint – zoom + for street detail; zoom control bottom-right */}
-      <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-lg shadow-lg z-[800]">
+      {/* Hint only – count hidden per request */}
+      <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-lg shadow-lg z-[1000]">
         <p className="text-xs text-gray-600">
-          {onBoundsChange ? "Zoom in (+) for street & building detail · Pan to filter list" : "Click markers for details"}
+          {onBoundsChange ? "Zoom or pan to see nearby properties in the list" : "Click markers for details"}
         </p>
       </div>
     </>

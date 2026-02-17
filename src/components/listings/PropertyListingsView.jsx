@@ -90,9 +90,7 @@ export default function PropertyListingsView() {
       } catch (err) {
         if (currentFetchId !== fetchIdRef.current) return;
         setError(err.message);
-        if (process.env.NODE_ENV === "development") {
-          console.error("Error fetching listings:", err);
-        }
+        console.error("Error fetching listings:", err);
       } finally {
         if (currentFetchId === fetchIdRef.current) {
           setLoading(false);
@@ -372,7 +370,7 @@ export default function PropertyListingsView() {
             </div>
 
             {/* Right Panel - Map: zoom/pan filters the list on the left */}
-            <div className="w-1/2 border-l relative" style={{ minHeight: '100%' }}>
+            <div className="w-1/2 border-l">
               <PropertyListingsMap
                 listings={mapListings}
                 onBoundsChange={setMapBounds}

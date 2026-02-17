@@ -133,7 +133,7 @@ export default function Footer() {
   .
 </div>
 
-{/* ================= BOTTOM BAR ================= */}
+{/* ================= BOTTOM BAR IN FOOTER ================= */}
 <div className="mt-16 flex flex-col md:flex-row items-center justify-between gap-6 border-t border-white/10 pt-6 text-sm">
   <p>© 2026 TheRealtor. All rights reserved.</p>
 
