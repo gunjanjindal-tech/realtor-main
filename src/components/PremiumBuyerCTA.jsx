@@ -19,7 +19,9 @@ export default function PremiumBuyerCTA() {
         e.target.reset();
       })
       .catch((error) => {
-        console.error(error);
+        if (process.env.NODE_ENV === "development") {
+          console.error(error);
+        }
         alert("Failed to send request");
       });
   };

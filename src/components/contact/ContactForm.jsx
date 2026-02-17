@@ -19,7 +19,9 @@ export default function ContactForm() {
           e.target.reset();
         },
         (error) => {
-          console.error(error);
+          if (process.env.NODE_ENV === "development") {
+            console.error(error);
+          }
           alert("Failed to send message");
         }
       );

@@ -32,19 +32,25 @@ export default function FeaturedProperties({ city }) {
               errorData = await res.json();
             } else {
               const text = await res.text();
-              console.error("❌ [SELL] API returned HTML instead of JSON:", text.substring(0, 200));
+              if (process.env.NODE_ENV === "development") {
+                console.error("❌ [SELL] API returned HTML instead of JSON:", text.substring(0, 200));
+              }
               errorData = { error: `Server returned ${contentType || "HTML"} instead of JSON` };
             }
           } catch (parseError) {
-            console.error("❌ [SELL] Failed to parse error response:", parseError);
+            if (process.env.NODE_ENV === "development") {
+              console.error("❌ [SELL] Failed to parse error response:", parseError);
+            }
           }
           
-          console.error("❌ [SELL] API Error Response:", {
-            status: res.status,
-            statusText: res.statusText,
-            contentType,
-            error: errorData,
-          });
+          if (process.env.NODE_ENV === "development") {
+            console.error("❌ [SELL] API Error Response:", {
+              status: res.status,
+              statusText: res.statusText,
+              contentType,
+              error: errorData,
+            });
+          }
           setListings([]);
           setTotal(0);
           return;
@@ -54,28 +60,34 @@ export default function FeaturedProperties({ city }) {
         const contentType = res.headers.get("content-type");
         if (!contentType?.includes("application/json")) {
           const text = await res.text();
-          console.error("❌ [SELL] API returned non-JSON response:", {
-            contentType,
-            preview: text.substring(0, 200),
-          });
+          if (process.env.NODE_ENV === "development") {
+            console.error("❌ [SELL] API returned non-JSON response:", {
+              contentType,
+              preview: text.substring(0, 200),
+            });
+          }
           setListings([]);
           setTotal(0);
           return;
         }
 
         const data = await res.json();
-        console.log("📊 [SELL] Frontend received data:", {
-          hasListings: !!data.listings,
-          hasBundle: !!data.bundle,
-          listingsCount: data.listings?.length || 0,
-          bundleCount: data.bundle?.length || 0,
-          total: data.total,
-        });
+        if (process.env.NODE_ENV === "development") {
+          console.log("📊 [SELL] Frontend received data:", {
+            hasListings: !!data.listings,
+            hasBundle: !!data.bundle,
+            listingsCount: data.listings?.length || 0,
+            bundleCount: data.bundle?.length || 0,
+            total: data.total,
+          });
+        }
 
         setListings(data.listings || data.bundle || []);
         setTotal(data.total || 0);
       } catch (err) {
-        console.error("❌ [SELL] Failed to fetch listings", err);
+        if (process.env.NODE_ENV === "development") {
+          console.error("❌ [SELL] Failed to fetch listings", err);
+        }
         setListings([]);
         setTotal(0);
       }

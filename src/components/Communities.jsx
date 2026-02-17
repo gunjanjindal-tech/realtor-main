@@ -81,7 +81,9 @@ export default function Communities() {
           setCommunities(communitiesWithCounts);
         }
       } catch (err) {
-        console.error("❌ [COMMUNITIES] Failed to fetch property counts:", err);
+        if (process.env.NODE_ENV === "development") {
+          console.error("❌ [COMMUNITIES] Failed to fetch property counts:", err);
+        }
         // Keep default communities if API fails
       } finally {
         setLoading(false);

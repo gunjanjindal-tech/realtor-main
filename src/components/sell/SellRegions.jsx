@@ -27,7 +27,11 @@ export default function SellRegions() {
     fetch("/api/bridge/regions")
       .then((res) => res.json())
       .then(setCounts)
-      .catch(console.error);
+      .catch((err) => {
+        if (process.env.NODE_ENV === "development") {
+          console.error("Error fetching region counts:", err);
+        }
+      });
   }, []);
 
   return (

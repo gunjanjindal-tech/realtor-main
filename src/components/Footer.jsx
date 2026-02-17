@@ -59,7 +59,6 @@ export default function Footer() {
     <Link
       key={c}
       href={`/buy/${slug}`}
-      onClick={close}
       className="hover:text-white hover:underline underline-offset-2 transition"
     >
       {c}

@@ -25,7 +25,9 @@ export default function AccessibilityWidget() {
       
       // Add error handling
       script.onerror = () => {
-        console.warn("UserWay widget failed to load");
+        if (process.env.NODE_ENV === "development") {
+          console.warn("UserWay widget failed to load");
+        }
       };
 
       document.body.appendChild(script);
@@ -38,7 +40,9 @@ export default function AccessibilityWidget() {
         }
       };
     } catch (error) {
-      console.warn("Error loading UserWay widget:", error);
+      if (process.env.NODE_ENV === "development") {
+        console.warn("Error loading UserWay widget:", error);
+      }
     }
   }, []);
 

@@ -19,9 +19,13 @@ export default function FeaturedProperties() {
           const contentType = res.headers.get("content-type");
           if (contentType?.includes("application/json")) {
             const errorData = await res.json();
-            console.error("❌ [HOME] API Error:", errorData);
+            if (process.env.NODE_ENV === "development") {
+              console.error("❌ [HOME] API Error:", errorData);
+            }
           } else {
-            console.error("❌ [HOME] API returned non-JSON response");
+            if (process.env.NODE_ENV === "development") {
+              console.error("❌ [HOME] API returned non-JSON response");
+            }
           }
           setListings([]);
           return;
@@ -35,14 +39,18 @@ export default function FeaturedProperties() {
         }
 
         const data = await res.json();
-        console.log("📊 [HOME] Featured Properties received:", {
-          listingsCount: data.listings?.length || 0,
-          total: data.total,
-        });
+        if (process.env.NODE_ENV === "development") {
+          console.log("📊 [HOME] Featured Properties received:", {
+            listingsCount: data.listings?.length || 0,
+            total: data.total,
+          });
+        }
 
         setListings(data.listings || data.bundle || []);
       } catch (err) {
-        console.error("❌ [HOME] Failed to fetch featured listings", err);
+        if (process.env.NODE_ENV === "development") {
+          console.error("❌ [HOME] Failed to fetch featured listings", err);
+        }
         setListings([]);
       } finally {
         setLoading(false);
@@ -93,12 +101,12 @@ export default function FeaturedProperties() {
             md:grid-cols-3 scrollbar-hide
           "
         >
-          {listings.map((listing) => (
+          {listings.map((listing, index) => (
             <div
               key={listing.ListingId || listing.Id}
               className="snap-start min-w-[280px] sm:min-w-0"
             >
-              <PropertyCard listing={listing} />
+              <PropertyCard listing={listing} priority={index === 0} />
             </div>
           ))}
         </div>

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 
-export default function PropertyCard({ listing, showNewDevelopmentBadge = false, listingType = "sale" }) {
+export default function PropertyCard({ listing, showNewDevelopmentBadge = false, listingType = "sale", priority = false }) {
   if (!listing) return null;
   const image = listing.Image || "/images/placeholder.jpg";
   const isExternal = image.startsWith("http");
@@ -73,6 +73,9 @@ export default function PropertyCard({ listing, showNewDevelopmentBadge = false,
       <Link
         href={`/buy/${citySlug}/${listingId}`}
         className="group rounded-2xl overflow-hidden bg-white shadow-md hover:shadow-2xl transition block"
+        onMouseEnter={() => {
+          if (listingId) fetch(`/api/bridge/property/${listingId}`).catch(() => {});
+        }}
       >
       {/* IMAGE */}
       <div className="relative aspect-[16/10] overflow-hidden bg-gray-100">
@@ -84,6 +87,7 @@ export default function PropertyCard({ listing, showNewDevelopmentBadge = false,
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
           className="object-cover group-hover:scale-105 transition"
           unoptimized={isExternal && !image.includes("images.unsplash.com")}
+          priority={priority}
         />
 
         <div className="absolute top-4 left-4 flex flex-col gap-2">

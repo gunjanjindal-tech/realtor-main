@@ -3,16 +3,16 @@
 import { useMemo, useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 
-// Dynamically import the client component (no SSR)
+// Google Maps (no SSR)
 const MapClient = dynamic(
-  () => import("./PropertyListingsMapClient"),
-  { 
+  () => import("./PropertyListingsMapGoogle"),
+  {
     ssr: false,
     loading: () => (
       <div className="h-full w-full flex items-center justify-center bg-gray-100">
         <p className="text-gray-500">Loading map...</p>
       </div>
-    )
+    ),
   }
 );
 
@@ -71,7 +71,7 @@ export default function PropertyListingsMap({ listings = [], onBoundsChange }) {
   }
 
   return (
-    <div className="h-full w-full relative bg-gray-100">
+    <div className="h-full w-full relative bg-gray-100" style={{ minHeight: '400px' }}>
       <MapClient
         listings={validListings}
         mapCenter={mapCenter}

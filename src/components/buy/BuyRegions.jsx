@@ -77,14 +77,18 @@ export default function BuyRegions({ onSelectCity }) {
     fetch("/api/bridge/regions")
       .then((res) => {
         if (!res.ok) {
-          console.warn("Failed to fetch region counts, using empty object");
+          if (process.env.NODE_ENV === "development") {
+            console.warn("Failed to fetch region counts, using empty object");
+          }
           return {};
         }
         return res.json();
       })
       .then(setCounts)
       .catch((err) => {
-        console.error("Error fetching region counts:", err);
+        if (process.env.NODE_ENV === "development") {
+          console.error("Error fetching region counts:", err);
+        }
         setCounts({});
       });
   }, []);

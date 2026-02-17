@@ -61,7 +61,11 @@ export async function GET() {
       }
     }
 
-    return Response.json(map);
+    return Response.json(map, {
+      headers: {
+        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+      },
+    });
   } catch (err) {
     console.error("❌ Regions API Error:", err);
     return Response.json({ error: err.message }, { status: 500 });

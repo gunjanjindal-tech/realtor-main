@@ -90,7 +90,9 @@ export default function PropertyListingsView() {
       } catch (err) {
         if (currentFetchId !== fetchIdRef.current) return;
         setError(err.message);
-        console.error("Error fetching listings:", err);
+        if (process.env.NODE_ENV === "development") {
+          console.error("Error fetching listings:", err);
+        }
       } finally {
         if (currentFetchId === fetchIdRef.current) {
           setLoading(false);
@@ -122,7 +124,7 @@ export default function PropertyListingsView() {
     [listings]
   );
 
-  // When map is zoomed/panned: show only listings inside visible map area on the left list
+  // When map is zoomed/panned: show listings in visible area + buffer so bagal (nearby) properties stay visible
   const displayedListings = useMemo(() => {
     if (!mapBounds) return listings;
     const { north, south, east, west } = mapBounds;
@@ -309,63 +311,11 @@ export default function PropertyListingsView() {
 
       {/* MAIN CONTENT */}
       <div className="max-w-[1600px] mx-auto">
-        {/* Results Count + Pagination */}
-        <div className="px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-[#091D35]">
-              {listingType === "rent" ? "Rental Listings" : "Real Estate & Homes for Sale"}
-            </h1>
-            <p className="text-gray-600 mt-1">
-              {mapBounds
-                ? `Showing ${displayedListings.length} of ${total.toLocaleString()}+ in map view`
-                : total > 0
-                  ? `${total.toLocaleString()}+ results · Page ${page} of ${totalPages}`
-                  : "No results found"}
-            </p>
-          </div>
-          {hasPagination && (viewMode === "map" || !mapBounds) && (
-            <nav className="flex items-center gap-2 flex-wrap" aria-label="Pagination">
-              <button
-                type="button"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="px-3 py-2 rounded-lg border border-gray-300 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-              >
-                Previous
-              </button>
-              <div className="flex items-center gap-1">
-                {Array.from({ length: Math.min(7, totalPages) }, (_, i) => {
-                  let p;
-                  if (totalPages <= 7) p = i + 1;
-                  else if (page <= 4) p = i + 1;
-                  else if (page >= totalPages - 3) p = totalPages - 6 + i;
-                  else p = page - 3 + i;
-                  return (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => setPage(p)}
-                      className={`w-10 h-10 rounded-lg text-sm font-medium ${
-                        page === p
-                          ? "bg-red-600 text-white"
-                          : "border border-gray-300 hover:bg-gray-50"
-                      }`}
-                    >
-                      {p}
-                    </button>
-                  );
-                })}
-              </div>
-              <button
-                type="button"
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className="px-3 py-2 rounded-lg border border-gray-300 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-              >
-                Next
-              </button>
-            </nav>
-          )}
+        {/* Title only – no property count, no "Showing X of Y" text */}
+        <div className="px-6 py-4">
+          <h1 className="text-2xl font-bold text-[#091D35]">
+            {listingType === "rent" ? "Rental Listings" : "Real Estate & Homes for Sale"}
+          </h1>
         </div>
 
         {/* Split View */}
@@ -383,17 +333,14 @@ export default function PropertyListingsView() {
                 </div>
               ) : (
                 <>
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-  {displayedListings.map((listing) => (
-    <PropertyCard
-      key={listing.ListingId || listing.Id}
-      listing={listing}
-      listingType={listingType}
-    />
-  ))}
-
-                    {displayedListings.map((listing) => (
-                      <PropertyCard key={listing.ListingId || listing.Id} listing={listing} listingType={listingType} />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {displayedListings.map((listing, index) => (
+                      <PropertyCard
+                        key={listing.ListingId || listing.Id}
+                        listing={listing}
+                        listingType={listingType}
+                        priority={index === 0}
+                      />
                     ))}
                   </div>
                   {/* Pagination at bottom of sidebar - always show when there are multiple pages */}
@@ -425,7 +372,7 @@ export default function PropertyListingsView() {
             </div>
 
             {/* Right Panel - Map: zoom/pan filters the list on the left */}
-            <div className="w-1/2 border-l">
+            <div className="w-1/2 border-l relative" style={{ minHeight: '100%' }}>
               <PropertyListingsMap
                 listings={mapListings}
                 onBoundsChange={setMapBounds}
@@ -489,29 +436,6 @@ export default function PropertyListingsView() {
                 onBoundsChange={setMapBounds}
               />
             </div>
-            {hasPagination && (
-              <div className="mt-4 flex items-center justify-center gap-4 flex-wrap bg-white py-3 rounded-lg border">
-                <button
-                  type="button"
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  className="px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium disabled:opacity-50 hover:bg-gray-50"
-                >
-                  Previous
-                </button>
-                <span className="text-sm text-gray-600">
-                  Page {page} of {totalPages} · {total.toLocaleString()}+ total
-                </span>
-                <button
-                  type="button"
-                  disabled={page >= totalPages}
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  className="px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium disabled:opacity-50 hover:bg-gray-50"
-                >
-                  Next
-                </button>
-              </div>
-            )}
           </div>
         )}
       </div>

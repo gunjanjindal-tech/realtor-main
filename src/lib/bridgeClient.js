@@ -14,7 +14,9 @@ export async function bridgeFetch(endpoint) {
   const separator = cleanEndpoint.includes("?") ? "&" : "?";
   const url = `${BASE_URL}${cleanEndpoint}${separator}access_token=${SERVER_TOKEN}`;
 
-  console.log("🌐 Bridge API URL:", url.replace(SERVER_TOKEN, "***TOKEN***"));
+  if (process.env.NODE_ENV === "development") {
+    console.log("🌐 Bridge API URL:", url.replace(SERVER_TOKEN, "***TOKEN***"));
+  }
 
   if (!SERVER_TOKEN) {
     throw new Error("BRIDGE_SERVER_TOKEN is not set in environment variables");
@@ -43,24 +45,30 @@ export async function bridgeFetch(endpoint) {
         } else {
           errorMessage = String(errorData);
         }
-        console.error("❌ Bridge API Error (JSON):", {
-          status: res.status,
-          statusText: res.statusText,
-          error: errorData,
-          url: url.replace(SERVER_TOKEN, "***TOKEN***"),
-        });
+        if (process.env.NODE_ENV === "development") {
+          console.error("❌ Bridge API Error (JSON):", {
+            status: res.status,
+            statusText: res.statusText,
+            error: errorData,
+            url: url.replace(SERVER_TOKEN, "***TOKEN***"),
+          });
+        }
       } else {
         const text = await res.text();
-        console.error("❌ Bridge API Error (HTML/Text):", {
-          status: res.status,
-          statusText: res.statusText,
-          contentType,
-          responsePreview: text.substring(0, 500),
-        });
+        if (process.env.NODE_ENV === "development") {
+          console.error("❌ Bridge API Error (HTML/Text):", {
+            status: res.status,
+            statusText: res.statusText,
+            contentType,
+            responsePreview: text.substring(0, 500),
+          });
+        }
         errorMessage = `Bridge API error (${res.status}): ${res.statusText}. Response is not JSON.`;
       }
     } catch (parseError) {
-      console.error("❌ Failed to parse error response:", parseError);
+      if (process.env.NODE_ENV === "development") {
+        console.error("❌ Failed to parse error response:", parseError);
+      }
     }
     
     throw new Error(errorMessage);
@@ -70,23 +78,19 @@ export async function bridgeFetch(endpoint) {
   const contentType = res.headers.get("content-type");
   if (!contentType?.includes("application/json")) {
     const text = await res.text();
-    console.error("❌ Bridge API returned non-JSON response:", {
-      contentType,
-      preview: text.substring(0, 200),
-    });
+    if (process.env.NODE_ENV === "development") {
+      console.error("❌ Bridge API returned non-JSON response:", {
+        contentType,
+        preview: text.substring(0, 200),
+      });
+    }
     throw new Error(`Bridge API returned non-JSON response (${contentType})`);
   }
 
   const jsonData = await res.json();
-  console.log("📦 Raw API Response structure:", {
-    keys: Object.keys(jsonData),
-    hasValue: !!jsonData.value, // OData standard
-    hasBundle: !!jsonData.bundle, // Some APIs use this
-    valueLength: jsonData.value?.length || 0,
-    bundleLength: jsonData.bundle?.length || 0,
-    odataCount: jsonData["@odata.count"],
-  });
-
+  if (process.env.NODE_ENV === "development") {
+    console.log("📦 Bridge response:", Object.keys(jsonData).join(", "), "length:", jsonData.value?.length ?? jsonData.bundle?.length ?? 0);
+  }
   return jsonData;
 }
 

@@ -62,7 +62,9 @@ export async function GET(req) {
   let endpoint = `/${DATASET_ID}/Listings?$top=${limit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}`;
 
   try {
-    console.log("🔍 Fetching from endpoint:", endpoint);
+    if (process.env.NODE_ENV === "development") {
+      console.log("🔍 Fetching from endpoint:", endpoint);
+    }
     let data;
     
     try {
@@ -70,21 +72,25 @@ export async function GET(req) {
     } catch (listingsError) {
       // If Listings fails with 404, try Properties endpoint
       if (listingsError.message.includes("404") || listingsError.message.includes("Invalid resource")) {
-        console.log("⚠️ Listings endpoint failed, trying Properties...");
+        if (process.env.NODE_ENV === "development") {
+          console.log("⚠️ Listings endpoint failed, trying Properties...");
+        }
         endpoint = `/${DATASET_ID}/Properties?$top=${limit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}`;
         data = await bridgeFetch(endpoint);
       } else {
         throw listingsError;
       }
     }
-    console.log("✅ API Response received:", {
-      hasValue: !!data.value,
-      hasBundle: !!data.bundle,
-      valueLength: data.value?.length || 0,
-      bundleLength: data.bundle?.length || 0,
-      odataCount: data["@odata.count"],
-      keys: Object.keys(data),
-    });
+    if (process.env.NODE_ENV === "development") {
+      console.log("✅ API Response received:", {
+        hasValue: !!data.value,
+        hasBundle: !!data.bundle,
+        valueLength: data.value?.length || 0,
+        bundleLength: data.bundle?.length || 0,
+        odataCount: data["@odata.count"],
+        keys: Object.keys(data),
+      });
+    }
 
     // OData standard uses 'value' array, but some APIs use 'bundle'
     // 🔥 SANITIZE RESPONSE (VERY IMPORTANT)
@@ -140,13 +146,15 @@ export async function GET(req) {
     const is404 = errorMessage.includes("404") || errorMessage.includes("Invalid resource");
     const isAuthError = errorMessage.includes("401") || errorMessage.includes("403");
     
-    console.error("❌ Buy API Route Error:", {
-      message: errorMessage,
-      status: is404 ? 404 : isAuthError ? 401 : 500,
-      endpoint: endpoint,
-      datasetId: DATASET_ID,
-      stack: process.env.NODE_ENV === "development" ? err.stack : undefined,
-    });
+    if (process.env.NODE_ENV === "development") {
+      console.error("❌ Buy API Route Error:", {
+        message: errorMessage,
+        status: is404 ? 404 : isAuthError ? 401 : 500,
+        endpoint: endpoint,
+        datasetId: DATASET_ID,
+        stack: err.stack,
+      });
+    }
     
     // Always return JSON, even on error
     return Response.json(

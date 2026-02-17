@@ -16,7 +16,9 @@ export default function PropertyHeader({ listing }) {
       try {
         await navigator.share(shareData);
       } catch (err) {
-        console.log("Share cancelled");
+        if (process.env.NODE_ENV === "development") {
+          console.log("Share cancelled");
+        }
       }
     } else {
       await navigator.clipboard.writeText(window.location.href);

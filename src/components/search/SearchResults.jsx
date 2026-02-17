@@ -44,7 +44,9 @@ function SearchResultsContent({ query: initialQuery }) {
               errorData = { error: `Server returned ${contentType || "HTML"} instead of JSON` };
             }
           } catch (parseError) {
-            console.error("Failed to parse error response:", parseError);
+            if (process.env.NODE_ENV === "development") {
+              console.error("Failed to parse error response:", parseError);
+            }
           }
           
           setError(errorData.error || "Failed to search properties");
@@ -62,16 +64,20 @@ function SearchResultsContent({ query: initialQuery }) {
         }
 
         const data = await res.json();
-        console.log("📊 Search results received:", {
-          listingsCount: data.listings?.length || 0,
-          total: data.total,
-          query: data.query,
-        });
+        if (process.env.NODE_ENV === "development") {
+          console.log("📊 Search results received:", {
+            listingsCount: data.listings?.length || 0,
+            total: data.total,
+            query: data.query,
+          });
+        }
 
         setListings(data.listings || []);
         setTotal(data.total || 0);
       } catch (err) {
-        console.error("❌ Failed to fetch search results", err);
+        if (process.env.NODE_ENV === "development") {
+          console.error("❌ Failed to fetch search results", err);
+        }
         setError(err.message || "Failed to search properties");
         setListings([]);
         setTotal(0);

@@ -74,7 +74,9 @@ useEffect(() => {
       setListings(data.listings || data.bundle || []);
       setTotal(data.total || 0);
     } catch (err) {
-      console.error("Fetch error:", err);
+      if (process.env.NODE_ENV === "development") {
+        console.error("Fetch error:", err);
+      }
       setListings([]);
       setTotal(0);
     }
