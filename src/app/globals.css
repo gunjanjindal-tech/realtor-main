@@ -1,0 +1,107 @@
+@import "tailwindcss";
+
+/* Home - Hero Section Animations */
+@keyframes slideFadeRightLuxury {
+  from {
+    opacity: 0;
+    transform: translateX(-90px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeUpLuxury {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-right-luxury {
+  animation: slideFadeRightLuxury 1.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-fade-up-luxury {
+  animation: fadeUpLuxury 1.4s ease-out both;
+}
+
+.delay-200 {
+  animation-delay: 0.2s;
+}
+
+.delay-400 {
+  animation-delay: 0.4s;
+}
+
+/* Contact Page */
+
+.input {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid #d1d5db;
+  padding: 14px 16px;
+  font-size: 14px;
+  outline: none;
+}
+
+.input:focus {
+  border-color: #091d35;
+}
+
+/* Hide scrollbar but keep scroll */
+.hide-scrollbar {
+  -ms-overflow-style: none;     /* IE & Edge */
+  scrollbar-width: none;        /* Firefox */
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;                /* Chrome, Safari */
+}
+
+
+/* Hide scrollbar but keep scroll working */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE & Edge */
+  scrollbar-width: none;     /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;             /* Chrome, Safari */
+}
+
+/* Listings map: price bubble on markers (e.g. "800K") – wrapper must not clip */
+.property-price-marker {
+  background: transparent !important;
+  border: none !important;
+  overflow: visible !important;
+  z-index: 600 !important;
+}
+
+/* Agal bagal: small grey labels for nearby address numbers from OSM */
+.nearby-number-marker {
+  background: transparent !important;
+  border: none !important;
+  z-index: 100 !important;
+}
+
+@keyframes slideText {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-slide-text {
+  animation: slideText 25s linear infinite;
+}
+
+
+
