@@ -1,6 +1,7 @@
+export const dynamic = "force-dynamic";
+
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
 import AgentTrust from "@/components/AgentTrust";
 import BuyHero from "@/components/buy/BuyHero";
 import BuyRegions from "@/components/buy/BuyRegions";
@@ -10,8 +11,9 @@ import PremiumBuyerCTA from "@/components/PremiumBuyerCTA";
 import WhyNovaScotia from "@/components/WhyNovaScotia";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
-function BuyPageContent() {
+export default function BuyPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -31,11 +33,8 @@ function BuyPageContent() {
       <BuyHero />
 
       <div className="max-w-[1600px] mx-auto px-6 py-4">
-        <Link
-          href="/listings"
-          className="inline-flex items-center gap-2 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-medium"
-        >
-          <span>View All Listings with Map</span>
+        <Link href="/listings">
+          View All Listings with Map
         </Link>
       </div>
 
@@ -52,13 +51,5 @@ function BuyPageContent() {
       <WhyNovaScotia />
       <BuyerTrustCTA />
     </>
-  );
-}
-
-export default function BuyPage() {
-  return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <BuyPageContent />
-    </Suspense>
   );
 }
