@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import AgentTrust from "@/components/AgentTrust";
 import BuyHero from "@/components/buy/BuyHero";
 import BuyRegions from "@/components/buy/BuyRegions";
@@ -13,13 +14,22 @@ import Link from "next/link";
 export default function BuyPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const cityFromUrl = searchParams?.get("City") || searchParams?.get("city") || "";
+
+  const [cityFromUrl, setCityFromUrl] = useState("");
+
+  useEffect(() => {
+    const city =
+      searchParams?.get("City") ||
+      searchParams?.get("city") ||
+      "";
+
+    setCityFromUrl(city);
+  }, [searchParams]);
 
   return (
     <>
-      <BuyHero />  
+      <BuyHero />
 
-      {/* Back to Home / View All Listings Button */}
       <div className="max-w-[1600px] mx-auto px-6 py-4">
         <Link
           href="/listings"
@@ -40,12 +50,10 @@ export default function BuyPage() {
 
       <FeaturedProperties city={cityFromUrl} />
 
-        <AgentTrust />
-
+      <AgentTrust />
       <PremiumBuyerCTA />
       <WhyNovaScotia />
       <BuyerTrustCTA />
     </>
   );
 }
-
