@@ -21,13 +21,6 @@ export default function ContactPage() {
           </div>
         </div>
       </section>
-
-      {/* BOTTOM: Office Locations (FULL WIDTH) */}
-      <section className="pb-24">
-        <div className="mx-auto max-w-7xl px-6">
-          <OfficeLocations />
-        </div>
-      </section>
     </>
   );
 }

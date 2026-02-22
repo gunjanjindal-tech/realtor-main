@@ -18,16 +18,15 @@ export default function Hero() {
     <section className="relative min-h-[100svh] overflow-hidden">
 
       {/* Background Video */}
-      <video
-        className="absolute inset-0 h-full w-full object-cover"
-        src="/videos/nova-scotia.mp4"
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="metadata"
-      />
-
+     <video
+  className="absolute inset-0 h-full w-full object-cover"
+  src="https://res.cloudinary.com/dijsl5wkv/video/upload/v1771556809/nova-scotia_j3sdnm.mp4"
+  autoPlay
+  muted
+  loop
+  playsInline
+  preload="metadata"
+/>
       {/* Overlay */}
       <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/40 to-black/60" />
 

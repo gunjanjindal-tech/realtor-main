@@ -90,5 +90,17 @@
   z-index: 100 !important;
 }
 
+@keyframes slideText {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-slide-text {
+  animation: slideText 25s linear infinite;
+}
 
 

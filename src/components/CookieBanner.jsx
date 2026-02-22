@@ -35,7 +35,7 @@ export default function CookieBanner() {
           cookies.{" "}
           <Link
             href="/cookies-policy"
-            className="underline text-[#FACC15]"
+            className="underline text-red-600"
           >
             Learn more
           </Link>
@@ -51,7 +51,7 @@ export default function CookieBanner() {
 
           <button
             onClick={acceptCookies}
-            className="px-5 py-2 text-sm font-semibold rounded-full bg-[#FACC15] text-black hover:bg-yellow-400 transition"
+            className="px-5 py-2 text-sm font-semibold rounded-full bg-red-600 text-white hover:bg-red-700 transition"
           >
             Accept
           </button>
