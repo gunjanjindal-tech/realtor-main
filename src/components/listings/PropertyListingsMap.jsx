@@ -9,8 +9,11 @@ const MapClient = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="h-full w-full flex items-center justify-center bg-gray-100">
-        <p className="text-gray-500">Loading map...</p>
+      <div className="h-full w-full flex items-center justify-center bg-gray-100" style={{ minHeight: '400px' }}>
+        <div className="text-center">
+          <p className="text-gray-500 mb-2">Loading map...</p>
+          <div className="w-8 h-8 border-4 border-[#091d35] border-t-transparent rounded-full animate-spin mx-auto"></div>
+        </div>
       </div>
     ),
   }
@@ -64,14 +67,26 @@ export default function PropertyListingsMap({ listings = [], onBoundsChange }) {
 
   if (!mounted) {
     return (
-      <div className="h-full w-full flex items-center justify-center bg-gray-100">
-        <p className="text-gray-500">Loading map...</p>
+      <div className="h-full w-full flex items-center justify-center bg-gray-100" style={{ minHeight: '400px' }}>
+        <div className="text-center">
+          <p className="text-gray-500 mb-2">Loading map...</p>
+          <div className="w-8 h-8 border-4 border-[#091d35] border-t-transparent rounded-full animate-spin mx-auto"></div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="h-full w-full relative bg-gray-100" style={{ minHeight: '400px' }}>
+    <div 
+      className="h-full w-full relative bg-gray-100" 
+      style={{ 
+        minHeight: '400px', 
+        height: '100%',
+        width: '100%',
+        position: 'relative',
+        overflow: 'hidden'
+      }}
+    >
       <MapClient
         listings={validListings}
         mapCenter={mapCenter}

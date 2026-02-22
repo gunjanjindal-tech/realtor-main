@@ -318,7 +318,7 @@ export default function PropertyListingsView() {
 
         {/* Split View */}
         {viewMode === "split" && (
-          <div className="flex h-[calc(100vh-250px)]">
+          <div className="flex h-[calc(100vh-250px)] min-h-[600px]">
             {/* Left Panel - Listings */}
             <div className="w-1/2 overflow-y-auto px-6 py-4">
               {loading && page === 1 ? (
@@ -370,7 +370,7 @@ export default function PropertyListingsView() {
             </div>
 
             {/* Right Panel - Map: zoom/pan filters the list on the left */}
-            <div className="w-1/2 border-l">
+            <div className="w-1/2 border-l" style={{ minHeight: '500px', height: '100%' }}>
               <PropertyListingsMap
                 listings={mapListings}
                 onBoundsChange={setMapBounds}
@@ -428,7 +428,7 @@ export default function PropertyListingsView() {
         {/* Map Only View */}
         {viewMode === "map" && (
           <div className="px-6 pb-4">
-            <div className="h-[calc(100vh-280px)]">
+            <div className="h-[calc(100vh-280px)] min-h-[500px] w-full">
               <PropertyListingsMap
                 listings={mapListings}
                 onBoundsChange={setMapBounds}

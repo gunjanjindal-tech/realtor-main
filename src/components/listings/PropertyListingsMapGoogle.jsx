@@ -4,7 +4,12 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from "@react-google-maps/api";
 import Link from "next/link";
 
-const MAP_CONTAINER_STYLE = { width: "100%", height: "100%", minHeight: 300 };
+const MAP_CONTAINER_STYLE = { 
+  width: "100%", 
+  height: "100%", 
+  minHeight: "400px",
+  position: "relative"
+};
 
 function getStreetNumber(listing) {
   const n = listing.StreetNumber || listing.StreetNumberNumeric;
@@ -15,15 +20,31 @@ function getStreetNumber(listing) {
   return null;
 }
 
-// Home icon as data URL for Google Marker
+// Simple dot marker (like reference image) - dark blue dot
+const DOT_ICON_SVG =
+  "data:image/svg+xml," +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="6" fill="#091d35" stroke="#ffffff" stroke-width="1.5"/></svg>'
+  );
+
+// Home icon as data URL for Google Marker (fallback)
 const HOME_ICON_SVG =
   "data:image/svg+xml," +
   encodeURIComponent(
     '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="36" viewBox="0 0 24 28" fill="none" stroke="#091d35" stroke-width="2"><path d="M3 12l9-9 9 9"/><path d="M5 10v10a1 1 0 001 1h3v-6h6v6h3a1 1 0 001-1V10"/></svg>'
   );
 
+// City cluster icon - larger dot (for city markers)
+const CITY_ICON_SVG =
+  "data:image/svg+xml," +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="#091d35" stroke="#ffffff" stroke-width="2"/></svg>'
+  );
+
 const defaultCenter = { lat: 44.6488, lng: -63.5752 };
-const ZOOM_PROPERTY_LEVEL = 13; // zoom >= this: show individual properties; below: show city markers
+const ZOOM_CITY_LEVEL = 11; // zoom < this: show only city markers
+const ZOOM_PROPERTY_LEVEL = 14; // zoom >= this: show all individual properties
+// zoom 11-13: show limited properties (sampling)
 
 export default function PropertyListingsMapGoogle({ listings = [], mapCenter, onBoundsChange }) {
   const [selectedId, setSelectedId] = useState(null);
@@ -85,12 +106,38 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter, on
   );
 
   const zoom = useMemo(() => {
-    if (validListings.length === 0) return 12;
+    if (validListings.length === 0) return 10;
     if (validListings.length === 1) return 19;
-    return 12;
+    return 10; // Start with city view (zoom < 11 shows cities only)
   }, [validListings.length]);
   
-  const showCityMarkers = zoomLevel < ZOOM_PROPERTY_LEVEL && validListings.length > 1;
+  // Progressive zoom levels:
+  // - Zoom < 11: Only city markers (clean view)
+  // - Zoom 11-13: Show limited properties (gradual reveal)
+  // - Zoom >= 14: Show all individual properties
+  const showCityMarkers = zoomLevel < ZOOM_CITY_LEVEL && validListings.length > 1;
+  const showLimitedProperties = zoomLevel >= ZOOM_CITY_LEVEL && zoomLevel < ZOOM_PROPERTY_LEVEL;
+  
+  // For limited property view, show progressively more properties based on zoom
+  const displayedListings = useMemo(() => {
+    if (showCityMarkers) return [];
+    if (!showLimitedProperties) return validListings;
+    
+    // Calculate how many properties to show based on zoom level
+    // At zoom 11: show very few (1-2 per city)
+    // At zoom 13: show more (5-10 per city)
+    const zoomProgress = (zoomLevel - ZOOM_CITY_LEVEL) / (ZOOM_PROPERTY_LEVEL - ZOOM_CITY_LEVEL); // 0 to 1
+    const maxPerCity = Math.max(1, Math.floor(2 + zoomProgress * 8)); // 2 to 10 per city
+    
+    const sampled = [];
+    cityGroups.forEach((city) => {
+      const sample = city.listings.slice(0, maxPerCity);
+      sampled.push(...sample);
+    });
+    
+    // Limit total to 300 for performance
+    return sampled.slice(0, 300);
+  }, [validListings, showCityMarkers, showLimitedProperties, cityGroups, zoomLevel]);
 
   const onLoad = useCallback(
     (map) => {
@@ -135,7 +182,7 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter, on
 
   if (!apiKey) {
     return (
-      <div className="h-full w-full flex flex-col items-center justify-center bg-gray-100 p-6 text-center">
+      <div className="h-full w-full flex flex-col items-center justify-center bg-gray-100 p-6 text-center" style={{ minHeight: '400px' }}>
         <p className="text-gray-700 font-medium text-lg mb-2">
           Google Map requires an API key.
         </p>
@@ -153,7 +200,7 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter, on
     const isInvalidKey = errorMessage.includes("InvalidKey") || errorMessage.includes("InvalidKeyMapError");
     
     return (
-      <div className="h-full w-full flex flex-col items-center justify-center bg-gray-100 p-6 text-center">
+      <div className="h-full w-full flex flex-col items-center justify-center bg-gray-100 p-6 text-center" style={{ minHeight: '400px' }}>
         <p className="text-gray-700 font-medium text-lg mb-2">
           {isInvalidKey ? "Invalid Google Maps API Key" : "Failed to load Google Maps."}
         </p>
@@ -175,21 +222,26 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter, on
 
   if (!isLoaded) {
     return (
-      <div className="h-full w-full flex items-center justify-center bg-gray-100">
-        <p className="text-gray-500">Loading map...</p>
+      <div className="h-full w-full flex items-center justify-center bg-gray-100" style={{ minHeight: '400px' }}>
+        <div className="text-center">
+          <p className="text-gray-500 mb-2">Loading map...</p>
+          <div className="w-8 h-8 border-4 border-[#091d35] border-t-transparent rounded-full animate-spin mx-auto"></div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="h-full w-full relative" id="google-map-container">
-      <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-lg shadow-lg z-[800]">
-        <p className="text-xs text-gray-600">
+    <div className="h-full w-full relative" id="google-map-container" style={{ minHeight: '400px', height: '100%' }}>
+      <div className="absolute top-4 left-4 bg-white/95 backdrop-blur-sm px-4 py-2 rounded-lg shadow-lg z-[800] border border-gray-200 max-w-[280px]">
+        <p className="text-xs text-gray-700 font-medium">
           {showCityMarkers
-            ? "Zoom in to see properties in each city"
-            : onBoundsChange
-              ? "Zoom out for city view · Pan to filter list"
-              : "Click markers for details"}
+            ? `📍 City view (Zoom ${Math.round(zoomLevel)}): Click any city marker to zoom in`
+            : showLimitedProperties
+              ? `🏠 Showing sample properties (Zoom ${Math.round(zoomLevel)}): Zoom in more to see all ${validListings.length} properties`
+              : onBoundsChange
+                ? `🏠 All properties (Zoom ${Math.round(zoomLevel)}): Zoom out for city overview`
+                : "Click markers for property details"}
         </p>
       </div>
       <GoogleMap
@@ -204,9 +256,12 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter, on
           scrollwheel: true,
           mapTypeControl: false,
           streetViewControl: false,
-          fullscreenControl: false,
+          fullscreenControl: true,
+          fullscreenControlOptions: { position: 7 },
           disableDefaultUI: false,
           gestureHandling: "cooperative",
+          minZoom: 6,
+          maxZoom: 20,
         }}
       >
         {showCityMarkers
@@ -215,32 +270,45 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter, on
                 key={city.key}
                 position={city.center}
                 icon={{
-                  url: HOME_ICON_SVG,
-                  scaledSize: { width: 36, height: 40 },
-                  anchor: { x: 18, y: 40 },
+                  url: CITY_ICON_SVG,
+                  scaledSize: { width: 20, height: 20 },
+                  anchor: { x: 10, y: 10 },
                 }}
                 label={{
                   text: `${city.count}`,
-                  color: "#091d35",
-                  fontSize: "11px",
+                  color: "#ffffff",
+                  fontSize: "13px",
                   fontWeight: "700",
                 }}
-                onClick={() => setSelectedCityKey(selectedCityKey === city.key ? null : city.key)}
+                onClick={() => {
+                  const isCurrentlySelected = selectedCityKey === city.key;
+                  setSelectedCityKey(isCurrentlySelected ? null : city.key);
+                  // Auto-zoom to city when clicked (if not already selected)
+                  if (mapRef.current && !isCurrentlySelected) {
+                    mapRef.current.setCenter(city.center);
+                    mapRef.current.setZoom(ZOOM_PROPERTY_LEVEL);
+                  }
+                }}
               >
                 {selectedCityKey === city.key && (
-                  <InfoWindow onCloseClick={() => setSelectedCityKey(null)}>
-                    <div className="p-2 min-w-[140px]">
-                      <p className="font-semibold text-[#091D35]">{city.cityName}</p>
-                      <p className="text-sm text-gray-600 mt-1">
-                        {city.count} propert{city.count === 1 ? "y" : "ies"}
+                  <InfoWindow 
+                    position={city.center}
+                    onCloseClick={() => setSelectedCityKey(null)}
+                  >
+                    <div className="p-3 min-w-[180px]">
+                      <p className="font-bold text-[#091D35] text-base mb-1">{city.cityName}</p>
+                      <p className="text-sm text-gray-700 font-medium">
+                        {city.count} propert{city.count === 1 ? "y" : "ies"} available
                       </p>
-                      <p className="text-xs text-gray-500 mt-2">Zoom in to see all listings</p>
+                      <p className="text-xs text-gray-500 mt-2 italic">
+                        Click marker to zoom in and see all listings
+                      </p>
                     </div>
                   </InfoWindow>
                 )}
               </Marker>
             ))
-          : validListings.map((listing, index) => {
+          : displayedListings.map((listing, index) => {
           const lat = parseFloat(listing.Latitude || listing.LatitudeDecimal);
           const lng = parseFloat(listing.Longitude || listing.LongitudeDecimal);
           if (isNaN(lat) || isNaN(lng)) return null;
@@ -268,58 +336,81 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter, on
           );
           const detailUrl = `/buy/${citySlug}/${listing.ListingId || listing.Id}`;
 
+          // Format price for label (e.g., "2.2M", "550K", "12M")
+          const formatPriceLabel = (priceStr) => {
+            const num = parseInt(priceStr.replace(/[^0-9]/g, ""));
+            if (isNaN(num)) return "";
+            if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`.replace(".0M", "M");
+            if (num >= 1000) return `${(num / 1000).toFixed(0)}K`;
+            return num.toString();
+          };
+          
+          const priceLabel = listing.ListPrice ? formatPriceLabel(listing.ListPrice.toString()) : "";
+          
           return (
             <Marker
               key={id}
               position={{ lat, lng }}
               icon={{
-                url: HOME_ICON_SVG,
-                scaledSize: { width: 32, height: 36 },
-                anchor: { x: 16, y: 36 },
+                url: DOT_ICON_SVG,
+                scaledSize: { width: 14, height: 14 },
+                anchor: { x: 7, y: 7 },
               }}
               label={
-                streetNum
+                priceLabel
                   ? {
-                      text: streetNum,
-                      color: "#091d35",
-                      fontSize: "12px",
+                      text: priceLabel,
+                      color: "#ffffff",
+                      fontSize: "10px",
                       fontWeight: "700",
                     }
                   : undefined
               }
-              onClick={() => setSelectedId(selectedId === id ? null : id)}
+              onClick={() => {
+                setSelectedId(selectedId === id ? null : id);
+              }}
+              cursor="pointer"
             >
               {selectedId === id && (
-                <InfoWindow onCloseClick={() => setSelectedId(null)}>
-                  <div className="p-0 max-w-[280px] overflow-hidden rounded-lg bg-white">
+                <InfoWindow 
+                  position={{ lat, lng }}
+                  onCloseClick={() => setSelectedId(null)}
+                >
+                  <div className="p-0 max-w-[320px] overflow-hidden rounded-lg bg-white shadow-lg">
                     {imageUrl && (
                       <div className="aspect-[4/3] w-full overflow-hidden bg-gray-100">
                         <img
                           src={imageUrl}
                           alt={address}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-cover hover:scale-105 transition-transform"
                         />
                       </div>
                     )}
-                    <div className="p-3">
-                      <h3 className="font-semibold text-[#091D35] text-sm mb-1">{price}</h3>
-                      {sqft && (
-                        <p className="text-xs text-gray-600 mb-0.5">
-                          {Number(sqft).toLocaleString()} sqft
-                        </p>
-                      )}
-                      <p className="text-xs text-gray-600 mb-2">{address}</p>
-                      <p className="text-xs text-gray-500 mb-2">
-                        {beds} bed, {baths} bath
-                      </p>
+                    <div className="p-4">
+                      <h3 className="font-bold text-[#091D35] text-lg mb-2">{price}</h3>
+                      <p className="text-sm text-gray-700 font-medium mb-2">{address}</p>
+                      <div className="flex items-center gap-4 text-xs text-gray-600 mb-3">
+                        <span>{beds} bed</span>
+                        <span>·</span>
+                        <span>{baths} bath</span>
+                        {sqft && (
+                          <>
+                            <span>·</span>
+                            <span>{Number(sqft).toLocaleString()} sqft</span>
+                          </>
+                        )}
+                      </div>
                       {mls && (
-                        <p className="text-xs text-gray-400 mb-2">MLS®: {mls}</p>
+                        <p className="text-xs text-gray-400 mb-3">MLS®: {mls}</p>
                       )}
                       <Link
                         href={detailUrl}
-                        className="inline-block text-xs font-medium text-[#091D35] underline hover:no-underline"
+                        className="inline-block w-full text-center px-4 py-2 bg-[#091D35] text-white text-sm font-semibold rounded-lg hover:bg-[#0a2540] transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                        }}
                       >
-                        View details →
+                        View Full Details
                       </Link>
                     </div>
                   </div>
