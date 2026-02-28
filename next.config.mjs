@@ -3,7 +3,7 @@ const nextConfig = {
   reactCompiler: true,
   compress: true,
   poweredByHeader: false,
-  swcMinify: true, // Performance optimization
+  // swcMinify is enabled by default in Next.js 16+, no need to specify
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com", pathname: "/**" },
@@ -17,6 +17,9 @@ const nextConfig = {
   experimental: {
     optimizePackageImports: ["lucide-react", "@react-google-maps/api"],
   },
+  
+  // Performance optimizations
+  productionBrowserSourceMaps: false,
 
   compiler: {
     removeConsole:

@@ -59,12 +59,10 @@ export async function GET(req) {
     //     hasBundle: !!data.bundle,
     //     valueLength: data.value?.length || 0,
     //     bundleLength: data.bundle?.length || 0,
-    //     odataCount: data["@odata.count"]
+    //     odataCount: data["@odata.count"],
+    //     keys: Object.keys(data),
     //   });
     // }
-        keys: Object.keys(data),
-      });
-    }
 
     // OData standard uses 'value' array, but some APIs use 'bundle'
     // 🔥 SANITIZE RESPONSE (VERY IMPORTANT)
@@ -140,4 +138,3 @@ export async function GET(req) {
     );
   }
 }
-
