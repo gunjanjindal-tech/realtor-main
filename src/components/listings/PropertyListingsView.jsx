@@ -157,7 +157,7 @@ export default function PropertyListingsView() {
   }, [listings, mapBounds]);
 
   return (
-    <div className="bg-[#0B1F3A] min-h-screen" style={{ paddingTop: '64px', overflow: 'hidden', height: '100vh' }}>
+  <div className="bg-[#0B1F3A] min-h-screen" style={{ paddingTop: '22px', overflow: 'hidden', height: '100vh' }}>
 
       {/* HEADER sitting on blue */}
       <Header />
@@ -484,7 +484,9 @@ export default function PropertyListingsView() {
       </div>
 
       {/* MAIN CONTENT */}
-      <div className="max-w-[1600px] mx-auto bg-white" style={{ height: 'calc(100vh - 180px)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+     <div 
+  className="max-w-[1600px] mx-auto bg-white flex flex-col"
+style={{ height: 'calc(100vh - 100px)', overflow: 'hidden' }}>
         {/* Title only – no property count, no "Showing X of Y" text */}
         <div className="px-6 py-4 flex-shrink-0">
           <h1 className="text-2xl font-bold text-[#091D35]">
