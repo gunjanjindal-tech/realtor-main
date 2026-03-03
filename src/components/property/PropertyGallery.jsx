@@ -95,18 +95,14 @@ function PropertyGallery({ images = [] }) {
               key={i}
               className="min-w-[85%] h-[260px] snap-center rounded-xl overflow-hidden"
             >
-              <Image
+              <img
                 src={img}
                 alt="Property"
-                fill
-                sizes="85vw"
-                className="object-cover cursor-pointer"
                 onClick={() => {
                   setActiveIndex(i);
                   setOpen(true);
                 }}
-                loading={i < 2 ? "eager" : "lazy"}
-                unoptimized={img?.startsWith('http') && !img?.includes('images.unsplash.com')}
+                className="w-full h-full object-cover"
               />
             </div>
           ))}
@@ -137,16 +133,19 @@ function PropertyGallery({ images = [] }) {
       </button>
 
       {/* Image */}
-      <div className="relative max-h-[85vh] max-w-[90vw] aspect-video">
-        <Image
-          src={gallery[activeIndex]}
-          alt="Property"
-          fill
-          className="object-contain rounded-lg"
-          unoptimized={gallery[activeIndex]?.startsWith('http') && !gallery[activeIndex]?.includes('images.unsplash.com')}
-        />
-      </div>
-
+     {/* Image */}
+<div className="relative w-[85vw] h-[85vh]">
+  <Image
+    src={gallery[activeIndex]}
+    alt="Property"
+    fill
+    className="object-cover rounded-3xl"
+    unoptimized={
+      gallery[activeIndex]?.startsWith("http") &&
+      !gallery[activeIndex]?.includes("images.unsplash.com")
+    }
+  />
+</div>
       {/* Next */}
       <button
         onClick={next}

@@ -74,9 +74,10 @@ function PropertyContent({ property }) {
 
       {/* PROPERTY DESCRIPTION — DARK */}
       <section className="max-w-[1000px]">
-        <div className="rounded-3xl bg-[#0A1F44] px-12 py-10">
+        <div className="rounded-3xl bg-[#0A1F44] px-5 py-10">
           <h2 className="text-2xl md:text-3xl font-extrabold text-white">
             Property Description
+            
           </h2>
           <div className="mt-2 h-[3px] w-16 bg-red-600 rounded-full" />
 

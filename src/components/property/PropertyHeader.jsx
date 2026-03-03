@@ -29,7 +29,7 @@ function PropertyHeader({ listing }) {
 
   return (
     <section className="bg-white border-b">
-      <div className="max-w-[1400px] mx-auto pt-12 pb-6">
+      <div className="max-w-[1400px] mx-auto pt-2 md:pt-12 pb-6">
 
 
         <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-8">
@@ -47,32 +47,32 @@ function PropertyHeader({ listing }) {
               </span>
             </div>
 
-            <p className="mt-6 text-2xl font-bold text-[#0A1F44]">
-              {Number(listing.ListPrice).toLocaleString()}
-            </p>
+           {/* PRICE + MOBILE SHARE */}
+<div className="mt-6 flex items-center justify-between lg:block">
 
-           
-        
+  <p className="text-2xl font-bold text-[#0A1F44]">
+    {Number(listing.ListPrice).toLocaleString()}
+  </p>
 
-         {/* SHARE – mobile & tablet */}
-            <button
-              onClick={handleShare}
-              className="
-                mt-4
-                inline-flex items-center gap-1.5
-                rounded-full border
-                px-3 py-1.5
-                text-xs sm:text-sm
-                text-[#0A1F44]
-                hover:bg-[#0A1F44] hover:text-white
-                transition
-                lg:hidden
-              "
-            >
-              <Share2 size={14} />
-              Share
-            </button>
+  <button
+    onClick={handleShare}
+    className="
+      inline-flex items-center gap-1.5
+      rounded-full border
+      px-3 py-1.5
+      text-xs sm:text-sm
+      text-[#0A1F44]
+      hover:bg-white hover:text-[#0A1F44]
+      bg-[#0A1F44] text-white
+      transition
+      lg:hidden
+    "
+  >
+    <Share2 size={14} />
+    Share
+  </button>
 
+</div>
    
           </div>
 
@@ -85,8 +85,8 @@ function PropertyHeader({ listing }) {
               rounded-full border
               px-4 py-2
               text-sm
-              text-[#0A1F44]
-              hover:bg-[#0A1F44] hover:text-white
+              hover:bg-white hover:text-[#0A1F44]
+      bg-[#0A1F44] text-white
               transition
             "
           >
