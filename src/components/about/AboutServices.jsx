@@ -55,16 +55,6 @@ export default function AboutServices({ services, activeBg, setActiveBg }) {
                 {service.text}
               </p>
 
-              <span
-                className="
-                  inline-block mt-5 text-sm font-semibold
-                  text-[rgb(229,14,11)]
-                  opacity-0 group-hover:opacity-100
-                  transition
-                "
-              >
-                Learn More →
-              </span>
             </div>
           ))}
         </div>

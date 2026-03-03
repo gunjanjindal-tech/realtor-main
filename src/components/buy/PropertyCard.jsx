@@ -105,7 +105,7 @@ export default function PropertyCard({ listing, showNewDevelopmentBadge = false,
       {/* CONTENT */}
       <div className="p-4">
         <p className="text-red-600 font-semibold text-lg">
-          {Number(listing.ListPrice).toLocaleString()}
+          ${Number(listing.ListPrice).toLocaleString()}
         </p>
 
         <h3 className="mt-1 font-semibold text-[#091D35] line-clamp-2">

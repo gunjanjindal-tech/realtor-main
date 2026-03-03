@@ -80,7 +80,7 @@ export default function FeaturedProperties({ city }) {
         {/* GRID - show listings as they load; no full-screen loading on pagination (like Buy) */}
         {listings.length === 0 ? (
           <div className="text-center py-20 text-gray-500">
-            No new developments found
+            New Development Properties Loading...
           </div>
         ) : (
           <>

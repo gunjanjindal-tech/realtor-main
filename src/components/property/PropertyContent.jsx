@@ -63,14 +63,31 @@ function PropertyContent({ property }) {
   };
   const formatDate = (v) => (v == null || v === "" ? "—" : String(v));
 
-  const financials = {
-    Price: property?.ListPrice ? `${Number(property.ListPrice).toLocaleString()}` : "—",
-    "Price per sq ft": property?.ListPrice && property?.BuildingAreaTotal ? 
-                      `${Math.round(property.ListPrice / property.BuildingAreaTotal).toLocaleString()}` : "—",
-  };
+ const formatCurrency = (value) => {
+  if (!value) return "—";
+
+  return new Intl.NumberFormat("en-CA", {
+    style: "currency",
+    currency: "CAD",
+    maximumFractionDigits: 0,
+  }).format(value);
+};
+
+const financials = {
+  Price: property?.ListPrice
+    ? formatCurrency(property.ListPrice)
+    : "—",
+
+  "Price per sq ft":
+    property?.ListPrice && property?.BuildingAreaTotal
+      ? formatCurrency(
+          Math.round(property.ListPrice / property.BuildingAreaTotal)
+        )
+      : "—",
+};
 
   return (
-    <div className="space-y-20">
+   <div className="space-y-20 -mt-8 md:mt-2">
 
       {/* PROPERTY DESCRIPTION — DARK */}
       <section className="max-w-[1000px]">

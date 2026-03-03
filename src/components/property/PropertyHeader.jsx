@@ -29,7 +29,7 @@ function PropertyHeader({ listing }) {
 
   return (
     <section className="bg-white border-b">
-      <div className="max-w-[1400px] mx-auto pt-2 md:pt-12 pb-6">
+      <div className="max-w-[1400px] mx-auto pt-2 md:pt-6 pb-6">
 
 
         <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-8">
@@ -51,7 +51,7 @@ function PropertyHeader({ listing }) {
 <div className="mt-6 flex items-center justify-between lg:block">
 
   <p className="text-2xl font-bold text-[#0A1F44]">
-    {Number(listing.ListPrice).toLocaleString()}
+   ${Number(listing.ListPrice).toLocaleString()}
   </p>
 
   <button
