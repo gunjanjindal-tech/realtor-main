@@ -190,6 +190,30 @@ export default function BuyFilters({ onApplyFilters, onClose, initialFilters }) 
           />
         </div>
 
+        <div className="grid grid-cols-2 gap-2 mt-4">
+  {[
+    { label: "Under $300K", min: 0, max: 300000 },
+    { label: "$300K – $500K", min: 300000, max: 500000 },
+    { label: "$500K – $700K", min: 500000, max: 700000 },
+    { label: "$700K – $1M", min: 700000, max: 1000000 },
+    { label: "$1M+", min: 1000000, max: 10000000 },
+  ].map((range) => (
+    <button
+      key={range.label}
+      onClick={() =>
+        setFilters((prev) => ({
+          ...prev,
+          minPrice: range.min,
+          maxPrice: range.max,
+        }))
+      }
+      className="text-xs border rounded-lg py-2 hover:bg-gray-100"
+    >
+      {range.label}
+    </button>
+  ))}
+</div>
+
       </div>
 
 
