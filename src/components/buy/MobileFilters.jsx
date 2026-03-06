@@ -3,7 +3,7 @@
 import { X } from "lucide-react";
 import BuyFilters from "./BuyFilters";
 
-export default function MobileFilters({ open, onClose, onApplyFilters }) {
+export default function MobileFilters({ open, onClose, onApplyFilters, initialFilters }) {
   if (!open) return null;
 
   return (
@@ -26,7 +26,11 @@ export default function MobileFilters({ open, onClose, onApplyFilters }) {
           </button>
         </div>
 
-        <BuyFilters onApplyFilters={onApplyFilters} onClose={onClose} />
+        <BuyFilters 
+          onApplyFilters={onApplyFilters} 
+          onClose={onClose} 
+          initialFilters={initialFilters}
+        />
       </div>
     </>
   );

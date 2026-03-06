@@ -7,6 +7,7 @@ import Breadcrumbs from "@/components/common/Breadcrumbs";
 import ListingsToolbar from "@/components/buy/ListingsToolbar";
 import MobileFilters from "@/components/buy/MobileFilters";
 import FeaturedProperties from "@/components/buy/FeaturedProperties";
+import CityMap from "@/components/buy/CityMap";
 
 export default function CityBuyPage() {
   const params = useParams();
@@ -109,12 +110,15 @@ export default function CityBuyPage() {
   </div>
 </section>
 
+      {/* MAP WITH ALL PROPERTIES */}
+      <CityMap city={city} filters={filters} />
 
       {/* MOBILE FILTER SLIDE-IN */}
       <MobileFilters
         open={filtersOpen}
         onClose={() => setFiltersOpen(false)}
         onApplyFilters={handleApplyFilters}
+        initialFilters={filters}
       />
     </>
   );

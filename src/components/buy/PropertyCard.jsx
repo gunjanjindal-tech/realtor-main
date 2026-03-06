@@ -36,6 +36,9 @@ export default function PropertyCard({ listing, showNewDevelopmentBadge = false,
 
   const listingId = listing.ListingId;
 
+  // Determine base path based on listingType
+  const basePath = listingType === "newDevelopment" ? "new-development" : listingType === "rent" ? "rent" : "buy";
+
   // Structured data for SEO
   const structuredData = {
     "@context": "https://schema.org",
@@ -71,7 +74,7 @@ export default function PropertyCard({ listing, showNewDevelopmentBadge = false,
         }}
       />
       <Link
-        href={`/buy/${citySlug}/${listingId}`}
+        href={`/${basePath}/${citySlug}/${listingId}`}
         className="group rounded-2xl overflow-hidden bg-white shadow-md hover:shadow-2xl transition block"
         prefetch={true}
       >

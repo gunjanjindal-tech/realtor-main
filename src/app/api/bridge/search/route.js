@@ -21,7 +21,8 @@ export async function GET(req) {
   ];
 
   // If there's a search query, add search conditions (case-insensitive)
-  // Full address support: "11762 Highway 316 Drumhead" → each word must appear in City or UnparsedAddress
+  // Start with safe fields: City and UnparsedAddress (known to work with tolower)
+  // Full address support: "11762 Highway 316 Drumhead" → each word must appear in any searchable field
   if (query && query.trim().length > 0) {
     const searchTermLower = query.trim().toLowerCase();
     const words = searchTermLower.split(/\s+/).filter((w) => w.length > 0);
@@ -29,6 +30,8 @@ export async function GET(req) {
     if (words.length > 0) {
       const wordConditions = words.map((word) => {
         const escaped = word.replace(/'/g, "''");
+        // Use only City and UnparsedAddress - these are known to work with tolower()
+        // Other fields (StreetName, PostalCode, Province) may not support tolower()
         return `(contains(tolower(City),'${escaped}') or contains(tolower(UnparsedAddress),'${escaped}'))`;
       });
       filterParts.push(`(${wordConditions.join(" and ")})`);
@@ -57,8 +60,11 @@ export async function GET(req) {
 
   const filterQuery = filterParts.join(" and ");
   
+  // Bridge API has a maximum $top value of 200
+  const topLimit = Math.min(limit, 200);
+  
   // Try Listings first, fallback to Properties if needed
-  let endpoint = `/${DATASET_ID}/Listings?$top=${limit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}`;
+  let endpoint = `/${DATASET_ID}/Listings?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}`;
 
   try {
     // Suppress verbose logging
@@ -79,7 +85,7 @@ export async function GET(req) {
         // if (process.env.NODE_ENV === "development") {
         //   console.log("⚠️ [SEARCH] Listings endpoint failed, trying Properties...");
         // }
-        endpoint = `/${DATASET_ID}/Properties?$top=${limit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}`;
+        endpoint = `/${DATASET_ID}/Properties?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}`;
         try {
           data = await bridgeFetch(endpoint);
         } catch (propertiesError) {
@@ -91,7 +97,8 @@ export async function GET(req) {
             //   console.log("⚠️ [SEARCH] Properties endpoint failed with field error, trying simplified search...");
             // }
             
-            // Try with only City and UnparsedAddress (word-by-word for full address)
+            // Try with safe fields only (City and UnparsedAddress)
+            // Other fields may not support tolower() in Bridge API
             const simpleWords = query.trim().toLowerCase().split(/\s+/).filter((w) => w.length > 0);
             const simpleWordConditions = simpleWords.map((word) => {
               const escaped = word.replace(/'/g, "''");
@@ -110,7 +117,7 @@ export async function GET(req) {
             if (minBaths) simpleFilterParts.push(`BathroomsTotalInteger ge ${minBaths}`);
             
             const simpleFilterQuery = simpleFilterParts.join(" and ");
-            endpoint = `/${DATASET_ID}/Properties?$top=${limit}&$skip=${skip}&$filter=${encodeURIComponent(simpleFilterQuery)}`;
+            endpoint = `/${DATASET_ID}/Properties?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(simpleFilterQuery)}`;
             
             try {
               data = await bridgeFetch(endpoint);
@@ -171,6 +178,155 @@ export async function GET(req) {
 
     // OData standard: @odata.count contains total count
     const total = data["@odata.count"] || data["@count"] || data.total || listings.length;
+
+    // If no results found, try a more relaxed search (OR instead of AND for words)
+    if (listings.length === 0 && query && query.trim().length > 0) {
+      const searchTermLower = query.trim().toLowerCase();
+      const words = searchTermLower.split(/\s+/).filter((w) => w.length > 0);
+
+      if (words.length > 0) {
+        // Strategy 1: Try OR search - any word matches any field (more lenient)
+        // Use only safe fields: City and UnparsedAddress
+        const orConditions = words.map((word) => {
+          const escaped = word.replace(/'/g, "''");
+          return `(contains(tolower(City),'${escaped}') or contains(tolower(UnparsedAddress),'${escaped}'))`;
+        });
+        
+        const relaxedFilterParts = [
+          "PropertyType eq 'Residential'",
+          "StandardStatus eq 'Active'",
+          `(${orConditions.join(" or ")})` // Use OR instead of AND
+        ];
+
+        // Add other filters if they exist
+        if (minPrice) relaxedFilterParts.push(`ListPrice ge ${minPrice}`);
+        if (maxPrice) relaxedFilterParts.push(`ListPrice le ${maxPrice}`);
+        if (minBeds) relaxedFilterParts.push(`BedroomsTotal ge ${minBeds}`);
+        if (minBaths) relaxedFilterParts.push(`BathroomsTotalInteger ge ${minBaths}`);
+
+        const relaxedFilterQuery = relaxedFilterParts.join(" and ");
+        let relaxedEndpoint = `/${DATASET_ID}/Listings?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(relaxedFilterQuery)}`;
+
+        try {
+          let relaxedData;
+          try {
+            relaxedData = await bridgeFetch(relaxedEndpoint);
+          } catch (listingsError) {
+            // Try Properties endpoint if Listings fails
+            relaxedEndpoint = `/${DATASET_ID}/Properties?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(relaxedFilterQuery)}`;
+            relaxedData = await bridgeFetch(relaxedEndpoint);
+          }
+          
+          const relaxedListings = (relaxedData.value || relaxedData.bundle || []).map((item) => ({
+            ListingId: item.ListingId,
+            Id: item.Id,
+            ListPrice: item.ListPrice,
+            City: item.City,
+            Province: item.Province,
+            UnparsedAddress: item.UnparsedAddress,
+            PostalCode: item.PostalCode,
+            BedroomsTotal: item.BedroomsTotal,
+            BathroomsTotalInteger: item.BathroomsTotalInteger,
+            BuildingAreaTotal: item.BuildingAreaTotal,
+            LivingArea: item.LivingArea,
+            Latitude: item.Latitude || item.LatitudeDecimal,
+            Longitude: item.Longitude || item.LongitudeDecimal,
+            Image:
+              item.Media?.[0]?.MediaURL ||
+              item.Media?.[0]?.MediaURLThumb ||
+              item.Photos?.[0]?.Uri ||
+              item.PhotoUrl ||
+              null,
+          }));
+
+          if (relaxedListings.length > 0) {
+            return Response.json(
+              {
+                listings: relaxedListings,
+                total: relaxedData["@odata.count"] || relaxedData["@count"] || relaxedListings.length,
+                query: query.trim(),
+                isRelated: true, // Flag to indicate these are related results
+              },
+              {
+                headers: {
+                  "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+                },
+              }
+            );
+          }
+        } catch (relaxedError) {
+          // If OR search fails, try Strategy 2: Partial match on first word only
+          try {
+            const firstWord = words[0];
+            const escaped = firstWord.replace(/'/g, "''");
+            
+            const partialFilterParts = [
+              "PropertyType eq 'Residential'",
+              "StandardStatus eq 'Active'",
+              `(contains(tolower(City),'${escaped}') or contains(tolower(UnparsedAddress),'${escaped}'))`
+            ];
+
+            // Add other filters if they exist
+            if (minPrice) partialFilterParts.push(`ListPrice ge ${minPrice}`);
+            if (maxPrice) partialFilterParts.push(`ListPrice le ${maxPrice}`);
+            if (minBeds) partialFilterParts.push(`BedroomsTotal ge ${minBeds}`);
+            if (minBaths) partialFilterParts.push(`BathroomsTotalInteger ge ${minBaths}`);
+
+            const partialFilterQuery = partialFilterParts.join(" and ");
+            let partialEndpoint = `/${DATASET_ID}/Listings?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(partialFilterQuery)}`;
+
+            let partialData;
+            try {
+              partialData = await bridgeFetch(partialEndpoint);
+            } catch (listingsError) {
+              partialEndpoint = `/${DATASET_ID}/Properties?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(partialFilterQuery)}`;
+              partialData = await bridgeFetch(partialEndpoint);
+            }
+
+            const partialListings = (partialData.value || partialData.bundle || []).map((item) => ({
+              ListingId: item.ListingId,
+              Id: item.Id,
+              ListPrice: item.ListPrice,
+              City: item.City,
+              Province: item.Province,
+              UnparsedAddress: item.UnparsedAddress,
+              PostalCode: item.PostalCode,
+              BedroomsTotal: item.BedroomsTotal,
+              BathroomsTotalInteger: item.BathroomsTotalInteger,
+              BuildingAreaTotal: item.BuildingAreaTotal,
+              LivingArea: item.LivingArea,
+              Latitude: item.Latitude || item.LatitudeDecimal,
+              Longitude: item.Longitude || item.LongitudeDecimal,
+              Image:
+                item.Media?.[0]?.MediaURL ||
+                item.Media?.[0]?.MediaURLThumb ||
+                item.Photos?.[0]?.Uri ||
+                item.PhotoUrl ||
+                null,
+            }));
+
+            if (partialListings.length > 0) {
+              return Response.json(
+                {
+                  listings: partialListings,
+                  total: partialData["@odata.count"] || partialData["@count"] || partialListings.length,
+                  query: query.trim(),
+                  isRelated: true, // Flag to indicate these are related results
+                },
+                {
+                  headers: {
+                    "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+                  },
+                }
+              );
+            }
+          } catch (partialError) {
+            // If partial search also fails, continue with empty results
+            console.warn("Partial search also failed:", partialError);
+          }
+        }
+      }
+    }
 
     return Response.json(
       {

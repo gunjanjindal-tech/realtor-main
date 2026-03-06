@@ -19,14 +19,22 @@ export async function GET(req) {
   const maxPrice = searchParams.get("maxPrice");
   const minBeds = searchParams.get("minBeds");
   const minBaths = searchParams.get("minBaths");
+  const includeSold = searchParams.get("includeSold") === "true";
 
   const skip = (page - 1) * limit;
 
   // Build OData $filter query
   const filterParts = [
-    "PropertyType eq 'Residential'",
-    "StandardStatus eq 'Active'"
+    "PropertyType eq 'Residential'"
   ];
+  
+  // Include sold properties if requested, otherwise only active
+  if (includeSold) {
+    // Include both Active and Sold/Closed properties
+    filterParts.push("(StandardStatus eq 'Active' or StandardStatus eq 'Sold' or StandardStatus eq 'Closed' or StandardStatus eq 'Pending')");
+  } else {
+    filterParts.push("StandardStatus eq 'Active'");
+  }
 
   if (city) {
     const areaFilter = AREA_TO_FILTER[city];
@@ -55,11 +63,14 @@ export async function GET(req) {
 
   const filterQuery = filterParts.join(" and ");
   
+  // Bridge API has a maximum $top value of 200
+  const topLimit = Math.min(limit, 200);
+  
   // Try Listings first, fallback to Properties if needed
   // Use OData syntax: $top, $skip, $filter
   // Note: $expand=Media is not supported, will fetch media separately if needed
   // OData standard response uses 'value' array, not 'bundle'
-  let endpoint = `/${DATASET_ID}/Listings?$top=${limit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}`;
+  let endpoint = `/${DATASET_ID}/Listings?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}`;
 
   try {
     // Suppress verbose logging
@@ -77,7 +88,7 @@ export async function GET(req) {
         // if (process.env.NODE_ENV === "development") {
         //   console.log("⚠️ Listings endpoint failed, trying Properties...");
         // }
-        endpoint = `/${DATASET_ID}/Properties?$top=${limit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}`;
+        endpoint = `/${DATASET_ID}/Properties?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}`;
         data = await bridgeFetch(endpoint);
       } else {
         throw listingsError;
@@ -111,6 +122,10 @@ export async function GET(req) {
       // SQ FT
       BuildingAreaTotal: item.BuildingAreaTotal,
       LivingArea: item.LivingArea,
+
+      // Status for map color coding (Sold vs Available)
+      StandardStatus: item.StandardStatus || item.Status || "Active",
+      Status: item.Status || item.StandardStatus || "Active",
 
       // Coordinates for map
       Latitude: item.Latitude || item.LatitudeDecimal,

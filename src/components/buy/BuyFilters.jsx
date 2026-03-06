@@ -2,13 +2,27 @@
 
 import { useState } from "react";
 
-export default function BuyFilters({ onApplyFilters, onClose }) {
-  const [filters, setFilters] = useState({
-    minBeds: "",
-    minBaths: "",
-    minPrice: "",
-    maxPrice: "",
-  });
+export default function BuyFilters({ onApplyFilters, onClose, initialFilters }) {
+
+  // Initialize filters from props or defaults
+  const getInitialFilters = () => {
+    if (initialFilters) {
+      return {
+        minBeds: initialFilters.minBeds || "",
+        minBaths: initialFilters.minBaths || "",
+        minPrice: initialFilters.minPrice ? Number(initialFilters.minPrice) : 0,
+        maxPrice: initialFilters.maxPrice ? Number(initialFilters.maxPrice) : 10000000,
+      };
+    }
+    return {
+      minBeds: "",
+      minBaths: "",
+      minPrice: 0,
+      maxPrice: 10000000,
+    };
+  };
+
+  const [filters, setFilters] = useState(getInitialFilters);
 
   const handleBedSelect = (value) => {
     const bedValue = value === "Any" ? "" : value.replace("+", "");
@@ -20,16 +34,6 @@ export default function BuyFilters({ onApplyFilters, onClose }) {
     setFilters((prev) => ({ ...prev, minBaths: bathValue }));
   };
 
-  const handleMinPriceChange = (e) => {
-    const value = e.target.value;
-    setFilters((prev) => ({ ...prev, minPrice: value }));
-  };
-
-  const handleMaxPriceChange = (e) => {
-    const value = e.target.value;
-    setFilters((prev) => ({ ...prev, maxPrice: value }));
-  };
-
   const resetFilters = {
     minBeds: "",
     minBaths: "",
@@ -38,43 +42,56 @@ export default function BuyFilters({ onApplyFilters, onClose }) {
   };
 
   const handleReset = () => {
-    setFilters(resetFilters);
-    if (onApplyFilters) {
-      onApplyFilters(resetFilters);
-    }
-    if (onClose) {
-      onClose();
-    }
+    const reset = {
+      minBeds: "",
+      minBaths: "",
+      minPrice: 0,
+      maxPrice: 10000000,
+    };
+    setFilters(reset);
+    // Convert to string format for parent component
+    if (onApplyFilters) onApplyFilters({
+      minBeds: "",
+      minBaths: "",
+      minPrice: "",
+      maxPrice: "",
+    });
+    if (onClose) onClose();
   };
 
   const handleApply = () => {
-    if (onApplyFilters) {
-      onApplyFilters(filters);
-    }
-    if (onClose) {
-      onClose();
-    }
+    // Convert price values to string format (empty string if default values)
+    const filtersToApply = {
+      minBeds: filters.minBeds || "",
+      minBaths: filters.minBaths || "",
+      minPrice: filters.minPrice > 0 ? filters.minPrice.toString() : "",
+      maxPrice: filters.maxPrice < 10000000 ? filters.maxPrice.toString() : "",
+    };
+    if (onApplyFilters) onApplyFilters(filtersToApply);
+    if (onClose) onClose();
   };
 
   return (
     <div className="space-y-8">
-      
+
       {/* BEDS */}
       <div>
         <p className="text-sm font-semibold text-[#091D35] mb-3">Beds</p>
+
         <div className="grid grid-cols-3 gap-2">
           {["Any", "1+", "2+", "3+", "4+", "5+"].map((b) => {
+
             const value = b === "Any" ? "" : b.replace("+", "");
             const isSelected = filters.minBeds === value;
+
             return (
               <button
                 key={b}
                 onClick={() => handleBedSelect(b)}
-                className={`rounded-xl border py-2 text-sm transition ${
-                  isSelected
-                    ? "bg-[#091D35] text-white border-[#091D35]"
-                    : "hover:border-[#091D35] hover:bg-[#091D35]/5"
-                }`}
+                className={`rounded-xl border py-2 text-sm transition ${isSelected
+                  ? "bg-[#091D35] text-white border-[#091D35]"
+                  : "hover:border-[#091D35] hover:bg-[#091D35]/5"
+                  }`}
               >
                 {b}
               </button>
@@ -82,23 +99,26 @@ export default function BuyFilters({ onApplyFilters, onClose }) {
           })}
         </div>
       </div>
+
 
       {/* BATHS */}
       <div>
         <p className="text-sm font-semibold text-[#091D35] mb-3">Baths</p>
+
         <div className="grid grid-cols-3 gap-2">
           {["Any", "1+", "2+", "3+", "4+", "5+"].map((b) => {
+
             const value = b === "Any" ? "" : b.replace("+", "");
             const isSelected = filters.minBaths === value;
+
             return (
               <button
                 key={b}
                 onClick={() => handleBathSelect(b)}
-                className={`rounded-xl border py-2 text-sm transition ${
-                  isSelected
-                    ? "bg-[#091D35] text-white border-[#091D35]"
-                    : "hover:border-[#091D35] hover:bg-[#091D35]/5"
-                }`}
+                className={`rounded-xl border py-2 text-sm transition ${isSelected
+                  ? "bg-[#091D35] text-white border-[#091D35]"
+                  : "hover:border-[#091D35] hover:bg-[#091D35]/5"
+                  }`}
               >
                 {b}
               </button>
@@ -107,77 +127,91 @@ export default function BuyFilters({ onApplyFilters, onClose }) {
         </div>
       </div>
 
+
       {/* PRICE */}
       <div className="space-y-4">
-        {/* Min Price */}
-        <div>
-          <p className="text-sm font-semibold text-[#091D35] mb-2">Min Price</p>
-          <select
-            value={filters.minPrice || ""}
-            onChange={handleMinPriceChange}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#091D35]"
-          >
-            <option value="">Any</option>
-            <option value="0">$0</option>
-            <option value="100000">$100K</option>
-            <option value="200000">$200K</option>
-            <option value="300000">$300K</option>
-            <option value="400000">$400K</option>
-            <option value="500000">$500K</option>
-            <option value="600000">$600K</option>
-            <option value="700000">$700K</option>
-            <option value="800000">$800K</option>
-            <option value="900000">$900K</option>
-            <option value="1000000">$1M</option>
-            <option value="1500000">$1.5M</option>
-            <option value="2000000">$2M</option>
-            <option value="3000000">$3M</option>
-            <option value="5000000">$5M+</option>
-          </select>
+
+        <p className="text-sm font-semibold text-[#091D35]">
+          Price Range
+        </p>
+
+        {/* Selected price */}
+        <div className="flex justify-between text-sm text-gray-600 mb-4">
+          <span className="font-medium">${filters.minPrice.toLocaleString()}</span>
+          <span className="font-medium">${filters.maxPrice.toLocaleString()}</span>
         </div>
 
-        {/* Max Price */}
-        <div>
-          <p className="text-sm font-semibold text-[#091D35] mb-2">Max Price</p>
-          <select
-            value={filters.maxPrice || ""}
-            onChange={handleMaxPriceChange}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#091D35]"
-          >
-            <option value="">Any</option>
-            <option value="200000">$200K</option>
-            <option value="300000">$300K</option>
-            <option value="400000">$400K</option>
-            <option value="500000">$500K</option>
-            <option value="600000">$600K</option>
-            <option value="700000">$700K</option>
-            <option value="800000">$800K</option>
-            <option value="900000">$900K</option>
-            <option value="1000000">$1M</option>
-            <option value="1500000">$1.5M</option>
-            <option value="2000000">$2M</option>
-            <option value="3000000">$3M</option>
-            <option value="5000000">$5M</option>
-            <option value="10000000">$10M+</option>
-          </select>
+        {/* Dual Range Slider - Single track with two handles */}
+        <div className="relative h-8 flex items-center">
+          {/* Track background */}
+          <div className="absolute w-full h-2 bg-gray-200 rounded-full"></div>
+
+          {/* Active range (between min and max) */}
+          <div
+            className="absolute h-2 bg-[#091D35] rounded-full"
+            style={{
+              left: `${(filters.minPrice / 10000000) * 100}%`,
+              width: `${((filters.maxPrice - filters.minPrice) / 10000000) * 100}%`
+            }}
+          ></div>
+
+          {/* Min Price Slider */}
+          <input
+            type="range"
+            min="0"
+            max="10000000"
+            step="10000"
+            value={filters.minPrice}
+            onChange={(e) => {
+              const newMin = Number(e.target.value);
+              setFilters((prev) => ({
+                ...prev,
+                minPrice: Math.min(newMin, prev.maxPrice - 10000),
+              }));
+            }}
+            className="absolute w-full h-2 opacity-0 cursor-pointer z-10"
+          />
+
+          {/* Max Price Slider */}
+          <input
+            type="range"
+            min="0"
+            max="10000000"
+            step="10000"
+            value={filters.maxPrice}
+            onChange={(e) => {
+              const newMax = Number(e.target.value);
+              setFilters((prev) => ({
+                ...prev,
+                maxPrice: Math.max(newMax, prev.minPrice + 10000),
+              }));
+            }}
+            className="absolute w-full h-2 opacity-0 cursor-pointer z-20"
+          />
         </div>
+
       </div>
+
 
       {/* ACTIONS */}
       <div className="flex gap-3 pt-4">
-        <button 
+
+        <button
           onClick={handleReset}
           className="flex-1 rounded-full border py-2 text-sm hover:bg-gray-50 transition"
         >
           Reset
         </button>
-        <button 
+
+        <button
           onClick={handleApply}
           className="flex-1 rounded-full bg-[#091D35] text-white py-2 text-sm hover:bg-[#0c2a4d] transition"
         >
           Apply Filters
         </button>
+
       </div>
+
     </div>
   );
 }

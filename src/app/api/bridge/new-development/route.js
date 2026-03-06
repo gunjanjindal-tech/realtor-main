@@ -55,8 +55,11 @@ export async function GET(req) {
 
   const filterQuery = filterParts.join(" and ");
   
+  // Bridge API has a maximum $top value of 200
+  const topLimit = Math.min(limit, 200);
+  
   // $count=true so Bridge returns @odata.count and we show correct total / pagination (sab property)
-  let endpoint = `/${DATASET_ID}/Listings?$top=${limit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}&$count=true`;
+  let endpoint = `/${DATASET_ID}/Listings?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}&$count=true`;
 
   try {
     if (process.env.NODE_ENV === "development") {
@@ -69,7 +72,7 @@ export async function GET(req) {
     } catch (listingsError) {
       // If Listings fails with 404, try Properties endpoint
       if (listingsError.message.includes("404") || listingsError.message.includes("Invalid resource")) {
-        endpoint = `/${DATASET_ID}/Properties?$top=${limit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}&$count=true`;
+        endpoint = `/${DATASET_ID}/Properties?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}&$count=true`;
         data = await bridgeFetch(endpoint);
       } else if (listingsError.message.includes("400") || listingsError.message.includes("Bad Request")) {
         // If filter fails (e.g., YearBuilt or tolower not available), try simpler filter
@@ -80,13 +83,13 @@ export async function GET(req) {
         const simpleCityFilter = buildCityFilter(city);
         if (simpleCityFilter) simpleFilterParts.push(simpleCityFilter);
         const simpleFilter = simpleFilterParts.join(" and ");
-        endpoint = `/${DATASET_ID}/Listings?$top=${limit}&$skip=${skip}&$filter=${encodeURIComponent(simpleFilter)}&$count=true`;
+        endpoint = `/${DATASET_ID}/Listings?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(simpleFilter)}&$count=true`;
         
         try {
           data = await bridgeFetch(endpoint);
         } catch (simpleError) {
           if (simpleError.message.includes("404") || simpleError.message.includes("Invalid resource")) {
-            endpoint = `/${DATASET_ID}/Properties?$top=${limit}&$skip=${skip}&$filter=${encodeURIComponent(simpleFilter)}&$count=true`;
+            endpoint = `/${DATASET_ID}/Properties?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(simpleFilter)}&$count=true`;
             data = await bridgeFetch(endpoint);
           } else {
             throw simpleError;
@@ -108,7 +111,7 @@ export async function GET(req) {
       const fallbackCityFilter = buildCityFilter(city);
       if (fallbackCityFilter) fallbackFilterParts.push(fallbackCityFilter);
       const fallbackFilter = fallbackFilterParts.join(" and ");
-      const fallbackEndpoint = `/${DATASET_ID}/Listings?$top=${limit}&$skip=${skip}&$filter=${encodeURIComponent(fallbackFilter)}&$count=true`;
+      const fallbackEndpoint = `/${DATASET_ID}/Listings?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(fallbackFilter)}&$count=true`;
       try {
         const fallbackData = await bridgeFetch(fallbackEndpoint);
         const fallbackListings = fallbackData.value || fallbackData.bundle || [];

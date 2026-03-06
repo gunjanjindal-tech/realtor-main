@@ -45,7 +45,11 @@ export async function GET(req) {
   }
 
   const filterQuery = filterParts.join(" and ");
-  let endpoint = `/${DATASET_ID}/Listings?$top=${limit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}`;
+  
+  // Bridge API has a maximum $top value of 200
+  const topLimit = Math.min(limit, 200);
+  
+  let endpoint = `/${DATASET_ID}/Listings?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}`;
 
   try {
     console.log("🔍 [RENT] Fetching from endpoint:", endpoint);
@@ -55,7 +59,7 @@ export async function GET(req) {
       data = await bridgeFetch(endpoint);
     } catch (listingsError) {
       if (listingsError.message.includes("404") || listingsError.message.includes("Invalid resource")) {
-        endpoint = `/${DATASET_ID}/Properties?$top=${limit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}`;
+        endpoint = `/${DATASET_ID}/Properties?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}`;
         data = await bridgeFetch(endpoint);
       } else if (listingsError.message.includes("400") || listingsError.message.includes("Cannot find property")) {
         // This MLS dataset does not expose rental/lease data – return empty with message (no error)
