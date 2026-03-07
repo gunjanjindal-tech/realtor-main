@@ -127,3 +127,24 @@
 .toolbar-toggle.active {
   @apply bg-red-600 text-white;
 }
+
+
+/* Property Listings View - Slider Customization */
+
+.rc-slider-track {
+background-color: #091D35 !important;
+}
+
+.rc-slider-handle {
+border: solid 2px #091D35 !important;
+background-color: white !important;
+opacity: 1;
+}
+
+.rc-slider-handle:hover {
+border-color: #DC2626 !important;
+}
+
+.rc-slider-rail {
+background-color: #e5e7eb !important;
+}

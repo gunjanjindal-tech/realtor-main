@@ -8,6 +8,8 @@ import { Search, Filter, Map, List as ListIcon, LayoutGrid } from "lucide-react"
 import { useRouter } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 import Header from "@/components/Header";
+import Slider from "rc-slider";
+import "rc-slider/assets/index.css";
 
 // Higher limit so map shows more properties (API allows it)
 const LISTINGS_LIMIT = 200;
@@ -43,6 +45,13 @@ export default function PropertyListingsView() {
     propertyType: "",
   });
 
+
+
+  // Price slider state
+  const [priceRange, setPriceRange] = useState([0, 2000000]);
+  const [showPricePopup, setShowPricePopup] = useState(false);
+  
+  
   const limit = LISTINGS_LIMIT;
   const fetchIdRef = useRef(0);
   const mapFetchIdRef = useRef(0);
@@ -51,6 +60,8 @@ export default function PropertyListingsView() {
 
   const hasSearchQuery = searchQuery && searchQuery.trim().length > 0;
   const hasSearchResults = hasSearchQuery && listings.length > 0;
+
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   // Clear search on mount - don't read from URL
   useEffect(() => {
@@ -364,7 +375,7 @@ export default function PropertyListingsView() {
         const totalNearby = Number(data1.total || combined.length);
 
         // Fetch one more page for better coverage (max ~400 markers)
-        const totalPages = Math.min(Math.ceil(totalNearby / 200), 2);
+        const totalPages = Math.min(Math.ceil(totalNearby / 200), 3);
         if (totalPages > 1) {
           const p2 = new URLSearchParams(params);
           p2.set("page", "2");
@@ -441,6 +452,15 @@ export default function PropertyListingsView() {
     return () => clearTimeout(timeoutId);
   }, [searchInputValue, searchQuery]);
 
+  useEffect(() => {
+  setFilters((prev) => ({
+    ...prev,
+    minPrice: priceRange[0],
+    maxPrice: priceRange[1],
+  }));
+  }, [priceRange]);
+  
+
   function handleSearch(e) {
     e.preventDefault();
     // Immediate search on Enter/Submit
@@ -456,13 +476,11 @@ export default function PropertyListingsView() {
     // - If search returned properties (exact/related): use `listings`
     // - If search returned 0: use `nearbyListings` (bounds-based) fallback; else fall back to `allMapListings`
     // - If not searching: use `allMapListings` for full map view
-    const sourceListings = hasSearchResults
-      ? listings
-      : hasSearchQuery
-        ? (nearbyListings.length > 0
-          ? nearbyListings
-          : (allMapListings.length > 0 ? allMapListings : []))
-        : (allMapListings.length > 0 ? allMapListings : listings);
+   const sourceListings = hasSearchResults
+  ? listings
+  : hasSearchQuery
+    ? nearbyListings
+    : (allMapListings.length > 0 ? allMapListings : listings);
     
     const filtered = sourceListings.filter(
       (listing) => {
@@ -510,13 +528,27 @@ export default function PropertyListingsView() {
     });
   }, [listings, allMapListings, nearbyListings, mapBounds, hasSearchQuery, hasSearchResults]);
 
+  function formatPriceLabel(value) {
+  if (value >= 1000000) {
+    return `$${(value / 1000000).toFixed(0)}M`;
+  }
+  if (value >= 1000) {
+    return `$${(value / 1000).toFixed(0)}K`;
+  }
+  return `$${value}`;
+}
+
+function formatPriceInput(value) {
+  return `$${value.toLocaleString()}`;
+}
+
   return (
   <div className="bg-[#0B1F3A] min-h-screen" style={{ paddingTop: '22px', overflow: 'hidden', height: '100vh' }}>
 
       {/* HEADER sitting on blue */}
       <Header />
       <div className="bg-white border-b sticky top-16 z-40">
-        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-4">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-8">
 
           {/* ✅ DESKTOP / TABLET */}
           <div className="hidden md:flex items-center gap-3">
@@ -528,6 +560,7 @@ export default function PropertyListingsView() {
             >
               ← Back
             </button>
+
 
             {/* Search */}
             <form onSubmit={handleSearch} className="flex-1">
@@ -558,56 +591,58 @@ export default function PropertyListingsView() {
             {/* Filters */}
             <div className="flex items-center gap-2">
 
-              <select
-                className="toolbar-select"
-                value={filters.minPrice || ""}
-                onChange={(e) => {
-                  setFilters((prev) => ({ ...prev, minPrice: e.target.value }));
-                  setPage(1);
-                }}
-              >
-                <option value="">Min Price</option>
-                <option value="0">$0</option>
-                <option value="100000">$100K</option>
-                <option value="200000">$200K</option>
-                <option value="300000">$300K</option>
-                <option value="400000">$400K</option>
-                <option value="500000">$500K</option>
-                <option value="600000">$600K</option>
-                <option value="700000">$700K</option>
-                <option value="800000">$800K</option>
-                <option value="900000">$900K</option>
-                <option value="1000000">$1M</option>
-                <option value="1500000">$1.5M</option>
-                <option value="2000000">$2M</option>
-                <option value="3000000">$3M</option>
-                <option value="5000000">$5M+</option>
-              </select>
+<div className="relative">
+  <button
+    onClick={() => setShowPricePopup(!showPricePopup)}
+    className="toolbar-select flex items-center gap-2"
+  >
+    {formatPriceLabel(priceRange[0])} – {formatPriceLabel(priceRange[1])}
+    <ChevronDown className="w-4 h-4" />
+  </button>
 
-              <select
-                className="toolbar-select"
-                value={filters.maxPrice || ""}
-                onChange={(e) => {
-                  setFilters((prev) => ({ ...prev, maxPrice: e.target.value }));
-                  setPage(1);
-                }}
-              >
-                <option value="">Max Price</option>
-                <option value="200000">$200K</option>
-                <option value="300000">$300K</option>
-                <option value="400000">$400K</option>
-                <option value="500000">$500K</option>
-                <option value="600000">$600K</option>
-                <option value="700000">$700K</option>
-                <option value="800000">$800K</option>
-                <option value="900000">$900K</option>
-                <option value="1000000">$1M</option>
-                <option value="1500000">$1.5M</option>
-                <option value="2000000">$2M</option>
-                <option value="3000000">$3M</option>
-                <option value="5000000">$5M</option>
-                <option value="10000000">$10M+</option>
-              </select>
+  {showPricePopup && (
+    <div className="absolute top-12 left-0 bg-white shadow-xl border rounded-xl p-4 w-[340px] z-50">
+
+      {/* MIN MAX INPUTS */}
+      <div className="flex items-center gap-3 mb-4">
+
+        <input
+  type="text"
+  value={formatPriceInput(priceRange[0])}
+  onChange={(e) => {
+    const value = Number(e.target.value.replace(/[^0-9]/g, ""));
+    setPriceRange([value, priceRange[1]]);
+  }}
+  className="w-full border rounded-lg px-3 py-2 text-sm"
+/>
+
+        <span className="text-gray-400 text-sm">to</span>
+
+        <input
+  type="text"
+  value={formatPriceInput(priceRange[1])}
+  onChange={(e) => {
+    const value = Number(e.target.value.replace(/[^0-9]/g, ""));
+    setPriceRange([priceRange[0], value]);
+  }}
+  className="w-full border rounded-lg px-3 py-2 text-sm"
+/>
+
+      </div>
+
+      {/* SLIDER */}
+      <Slider
+        range
+        min={0}
+        max={10000000}
+        step={50000}
+        value={priceRange}
+        onChange={(value) => setPriceRange(value)}
+      />
+
+    </div>
+  )}
+</div>
 
               <select
                 className="toolbar-select"
@@ -693,6 +728,13 @@ export default function PropertyListingsView() {
                 ← Back
               </button>
 
+              <button
+onClick={() => setShowMobileFilters(true)}
+className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm"
+>
+Filters
+</button>
+
               {/* View toggle - List and Map only (no Split on mobile) */}
               <div className="flex border border-gray-300 rounded-lg p-1 ml-auto">
                 <button
@@ -736,103 +778,7 @@ export default function PropertyListingsView() {
               </div>
             </form>
 
-            {/* Row 3 Filters Scroll */}
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              <select
-                className="toolbar-select min-w-[110px]"
-                value={filters.minPrice || ""}
-                onChange={(e) => {
-                  setFilters((prev) => ({ ...prev, minPrice: e.target.value }));
-                  setPage(1);
-                }}
-              >
-                <option value="">Min Price</option>
-                <option value="0">$0</option>
-                <option value="100000">$100K</option>
-                <option value="200000">$200K</option>
-                <option value="300000">$300K</option>
-                <option value="400000">$400K</option>
-                <option value="500000">$500K</option>
-                <option value="600000">$600K</option>
-                <option value="700000">$700K</option>
-                <option value="800000">$800K</option>
-                <option value="900000">$900K</option>
-                <option value="1000000">$1M</option>
-                <option value="1500000">$1.5M</option>
-                <option value="2000000">$2M</option>
-                <option value="3000000">$3M</option>
-                <option value="5000000">$5M+</option>
-              </select>
-              <select
-                className="toolbar-select min-w-[110px]"
-                value={filters.maxPrice || ""}
-                onChange={(e) => {
-                  setFilters((prev) => ({ ...prev, maxPrice: e.target.value }));
-                  setPage(1);
-                }}
-              >
-                <option value="">Max Price</option>
-                <option value="200000">$200K</option>
-                <option value="300000">$300K</option>
-                <option value="400000">$400K</option>
-                <option value="500000">$500K</option>
-                <option value="600000">$600K</option>
-                <option value="700000">$700K</option>
-                <option value="800000">$800K</option>
-                <option value="900000">$900K</option>
-                <option value="1000000">$1M</option>
-                <option value="1500000">$1.5M</option>
-                <option value="2000000">$2M</option>
-                <option value="3000000">$3M</option>
-                <option value="5000000">$5M</option>
-                <option value="10000000">$10M+</option>
-              </select>
-              <select
-                className="toolbar-select"
-                value={filters.minBeds || ""}
-                onChange={(e) => {
-                  setFilters((prev) => ({ ...prev, minBeds: e.target.value }));
-                  setPage(1);
-                }}
-              >
-                <option value="">Beds</option>
-                <option value="1">1+</option>
-                <option value="2">2+</option>
-                <option value="3">3+</option>
-                <option value="4">4+</option>
-                <option value="5">5+</option>
-              </select>
-              <select
-                className="toolbar-select"
-                value={filters.minBaths || ""}
-                onChange={(e) => {
-                  setFilters((prev) => ({ ...prev, minBaths: e.target.value }));
-                  setPage(1);
-                }}
-              >
-                <option value="">Baths</option>
-                <option value="1">1+</option>
-                <option value="2">2+</option>
-                <option value="3">3+</option>
-                <option value="4">4+</option>
-                <option value="5">5+</option>
-              </select>
-              <button
-                className="toolbar-clear"
-                onClick={() => {
-                  setFilters({
-                    minPrice: "",
-                    maxPrice: "",
-                    minBeds: "",
-                    minBaths: "",
-                    propertyType: "",
-                  });
-                  setPage(1);
-                }}
-              >
-                Clear
-              </button>
-            </div>
+            
           </div>
         </div>
       </div>
@@ -1039,8 +985,181 @@ style={{
               />
             </div>
           </div>
-        )}
+               )}
       </div>
+
+
+{/* MOBILE FILTER PANEL */}
+{showMobileFilters && (
+  <div className="fixed inset-0 bg-black/40 z-[100] flex items-end md:hidden">
+
+    <div className="bg-white w-full rounded-t-2xl p-5 max-h-[85vh] overflow-y-auto">
+
+      {/* Header */}
+    <div className="flex items-center justify-between border-b pb-3 mb-6">
+
+<h2 className="text-lg font-semibold text-[#091D35]">
+Filters
+</h2>
+
+<button
+onClick={()=>setShowMobileFilters(false)}
+className="text-gray-500 text-lg"
+>
+✕
+</button>
+
+</div>
+      {/* PRICE */}
+      <div className="mb-6">
+
+        <h3 className="text-sm font-semibold mb-3">Price</h3>
+
+        <div className="flex gap-2 mb-4">
+
+          <input
+            type="text"
+            value={formatPriceInput(priceRange[0])}
+            onChange={(e) => {
+              const value = Number(e.target.value.replace(/[^0-9]/g, ""));
+              setPriceRange([value, priceRange[1]]);
+            }}
+            className="w-full border rounded-lg px-3 py-2 text-sm"
+          />
+
+          <span className="text-gray-400 self-center">to</span>
+
+          <input
+            type="text"
+            value={formatPriceInput(priceRange[1])}
+            onChange={(e) => {
+              const value = Number(e.target.value.replace(/[^0-9]/g, ""));
+              setPriceRange([priceRange[0], value]);
+            }}
+            className="w-full border rounded-lg px-3 py-2 text-sm"
+          />
+
+        </div>
+
+        <Slider
+          range
+          min={0}
+          max={10000000}
+          step={50000}
+          value={priceRange}
+          onChange={(value) => setPriceRange(value)}
+        />
+
+      </div>
+
+
+      {/* BEDROOMS */}
+      <div className="mb-6">
+
+        <h3 className="text-sm font-semibold mb-3">Bedrooms</h3>
+
+        <div className="flex gap-2 flex-wrap">
+
+          {["", "1", "2", "3", "4", "5"].map((bed) => (
+
+            <button
+              key={bed}
+              onClick={() => {
+                setFilters((prev) => ({ ...prev, minBeds: bed }));
+              }}
+            className={`px-3 py-2 rounded-lg border text-sm font-medium transition
+${
+filters.minBeds === bed
+? "bg-[#091D35] text-white border-[#091D35]"
+: "bg-white border-gray-300 hover:border-red-500"
+}`}
+            >
+
+              {bed === "" ? "Any" : `${bed}+`}
+
+            </button>
+
+          ))}
+
+        </div>
+
+      </div>
+
+
+      {/* BATHROOMS */}
+      <div className="mb-6">
+
+        <h3 className="text-sm font-semibold mb-3">Bathrooms</h3>
+
+        <div className="flex gap-2 flex-wrap">
+
+          {["", "1", "2", "3", "4", "5"].map((bath) => (
+
+            <button
+              key={bath}
+              onClick={() => {
+                setFilters((prev) => ({ ...prev, minBaths: bath }));
+              }}
+            className={`px-3 py-2 rounded-lg border text-sm font-medium transition
+${
+filters.minBaths === bath
+? "bg-[#091D35] text-white border-[#091D35]"
+: "bg-white border-gray-300 hover:border-red-500"
+}`}
+            >
+
+              {bath === "" ? "Any" : `${bath}+`}
+
+            </button>
+
+          ))}
+
+        </div>
+
+      </div>
+
+
+      {/* Footer */}
+    <div className="sticky bottom-0 bg-white border-t pt-4 mt-6">
+
+<div className="flex gap-3">
+
+<button
+onClick={()=>{
+setFilters({
+minPrice:"",
+maxPrice:"",
+minBeds:"",
+minBaths:"",
+propertyType:""
+})
+setPriceRange([0,2000000])
+setPage(1)
+}}
+className="flex-1 border border-gray-300 rounded-lg py-3 text-sm font-medium hover:border-red-500"
+>
+Reset
+</button>
+
+<button
+onClick={()=>{
+setShowMobileFilters(false)
+setPage(1)
+}}
+className="flex-1 bg-red-600 text-white rounded-lg py-3 text-sm font-semibold hover:bg-red-700"
+>
+See Properties
+</button>
+
+</div>
+
+</div>
+
+    </div>
+  </div>
+)}
+
+      
     </div>
   );
 }

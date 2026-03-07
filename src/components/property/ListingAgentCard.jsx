@@ -18,7 +18,7 @@ export default function ListingAgentCard() {
 bg-red-600 text-white px-4 py-2 rounded-xl mb-4
 transition-all duration-300 ease-in-out 
 hover:bg-red-700">
-  Listing Agent
+     Nova Scotia Realtor
 </p>
 
       <div className="flex items-center gap-5">

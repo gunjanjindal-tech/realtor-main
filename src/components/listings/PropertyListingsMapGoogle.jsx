@@ -64,8 +64,8 @@ function createCityIconSVG(count) {
 }
 
 const defaultCenter = { lat: 44.6488, lng: -63.5752 };
-const ZOOM_CITY_LEVEL = 20; // zoom < this: show only city markers (very zoomed out)
-const ZOOM_PROPERTY_LEVEL = 20; // zoom >= this: show all individual properties (hide city markers)
+const ZOOM_CITY_LEVEL = 9; // zoom < this: show only city markers (very zoomed out)
+const ZOOM_PROPERTY_LEVEL = 12; // zoom >= this: show all individual properties (hide city markers)
 
 // Static libraries array to prevent LoadScript reload warning
 // Note: "geocoding" is not included to avoid errors if API key doesn't have Geocoding API enabled
@@ -107,7 +107,7 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
   // Location-based clustering: group nearby properties together
   // Dynamic cluster distance based on zoom level - larger clusters when zoomed out
   const getClusterDistance = (zoom) => {
-    if (zoom <= 7) return 0.15; // Very zoomed out: ~15km clusters
+    if (zoom <= 7) return 0.02; // Very zoomed out: ~15km clusters
     if (zoom <= 8) return 0.10; // Zoomed out: ~10km clusters
     if (zoom <= 9) return 0.08; // Medium zoom: ~8km clusters
     return 0.05; // Closer zoom: ~5km clusters
@@ -220,7 +220,7 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
           const lng = parseFloat(listing.Longitude || listing.LongitudeDecimal);
           if (!isNaN(lat) && !isNaN(lng)) {
             map.setCenter({ lat, lng });
-            map.setZoom(12);
+            map.setZoom(17);
           }
         } else if (validListings.length > 0) {
           // Quick center - no complex calculations
@@ -242,7 +242,7 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
               if (b) {
                 const ne = b.getNorthEast();
                 const sw = b.getSouthWest();
-                const pad = 0.15;
+                const pad = 0.02;
                 const latSpan = ne.lat() - sw.lat();
                 const lngSpan = ne.lng() - sw.lng();
                 onBoundsChange({
@@ -277,7 +277,7 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
           if (!b) return;
           const ne = b.getNorthEast();
           const sw = b.getSouthWest();
-          const pad = 0.15;
+          const pad = 0.02;
           const latSpan = ne.lat() - sw.lat();
           const lngSpan = ne.lng() - sw.lng();
           onBoundsChange({
@@ -422,35 +422,32 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
         const geocoder = new window.google.maps.Geocoder();
 
         // Try multiple geocoding strategies for better results - works for any location name
-        const geocodeAttempts = [
-          // Strategy 1: Direct search (works for well-known places, roads, cities)
-          searchAddress,
-          // Strategy 2: With "Halifax, Nova Scotia, Canada" (most specific)
-          `${searchAddress}, Halifax, Nova Scotia, Canada`,
-          // Strategy 3: With "Nova Scotia, Canada" (broader)
-          `${searchAddress}, Nova Scotia, Canada`,
-          // Strategy 4: With "Canada" (broadest)
-          `${searchAddress}, Canada`,
-        ];
+const geocodeAttempts = [
+  `${searchAddress}, Nova Scotia, Canada`,
+  `${searchAddress}, Nova Scotia`,
+  searchAddress
+];
 
         let attemptIndex = 0;
 
-        const tryGeocode = (address) => {
-          geocoder.geocode({ address }, (results, status) => {
-            // Handle error status gracefully - don't show errors to user
-            if (status !== window.google.maps.GeocoderStatus.OK) {
-              // Silently handle errors - try next attempt or just continue
-              attemptIndex++;
-              if (attemptIndex < geocodeAttempts.length) {
-                tryGeocode(geocodeAttempts[attemptIndex]);
-              } else {
-                // All attempts failed - restore console and continue silently
-                console.error = originalError;
-                console.warn = originalWarn;
-                console.log = originalLog;
-              }
-              return;
-            }
+       const tryGeocode = (address) => {
+  geocoder.geocode(
+    {
+      address: address,
+      region: "ca",
+    },
+    (results, status) => {
+      if (status !== window.google.maps.GeocoderStatus.OK) {
+        attemptIndex++;
+        if (attemptIndex < geocodeAttempts.length) {
+          tryGeocode(geocodeAttempts[attemptIndex]);
+        } else {
+          console.error = originalError;
+          console.warn = originalWarn;
+          console.log = originalLog;
+        }
+        return;
+      }
 
             // Restore console functions after successful geocoding
             console.error = originalError;
@@ -464,9 +461,9 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
               const viewport = result.geometry.viewport;
 
               // Always set a marker at the geocoded point so user sees where the road/area is
-              const centerPoint = bounds
-                ? bounds.getCenter()
-                : (viewport ? viewport.getCenter() : location);
+            const centerPoint = location || 
+  (viewport ? viewport.getCenter() : null) ||
+  (bounds ? bounds.getCenter() : null);
               if (centerPoint) {
                 setSearchLocation({ lat: centerPoint.lat(), lng: centerPoint.lng() });
               }
@@ -586,7 +583,7 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
               zoomToSearchLocation();
 
               // If we have properties, adjust view to include them but keep search location priority
-              if (hasSearchResults && validListings.length > 0) {
+              if (hasSearchResults && validListings.length > 0 && !searchLocation) {
                 const propertyBounds = new window.google.maps.LatLngBounds();
                 let hasPropertyCoords = false;
 
@@ -665,22 +662,25 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
               // Trigger bounds change after geocoding zoom so nearby properties can be fetched
               // Use multiple strategies to ensure bounds are reported reliably
               if (mapRef.current && onBoundsChange) {
-                const reportBounds = () => {
-                  const b = mapRef.current?.getBounds();
-                  if (b) {
-                    const ne = b.getNorthEast();
-                    const sw = b.getSouthWest();
-                    const pad = 0.15;
-                    const latSpan = ne.lat() - sw.lat();
-                    const lngSpan = ne.lng() - sw.lng();
-                    onBoundsChange({
-                      north: ne.lat() + latSpan * pad,
-                      south: sw.lat() - latSpan * pad,
-                      east: ne.lng() + lngSpan * pad,
-                      west: sw.lng() - lngSpan * pad,
-                    });
-                  }
-                };
+             const reportBounds = () => {
+  const b = mapRef.current?.getBounds();
+  if (b) {
+    const ne = b.getNorthEast();
+    const sw = b.getSouthWest();
+
+    const pad = 0.02;
+
+    const latSpan = ne.lat() - sw.lat();
+    const lngSpan = ne.lng() - sw.lng();
+
+    onBoundsChange({
+      north: ne.lat() + latSpan * pad,
+      south: sw.lat() - latSpan * pad,
+      east: ne.lng() + lngSpan * pad,
+      west: sw.lng() - lngSpan * pad,
+    });
+  }
+};
 
                 // Fast bounds reporting - immediate and on idle
                 // Strategy 1: Report with small delay to ensure bounds are ready
