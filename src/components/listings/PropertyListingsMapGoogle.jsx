@@ -81,7 +81,6 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
   const [mapTypeId, setMapTypeId] = useState("roadmap"); // Default to roadmap view
   const [searchLocation, setSearchLocation] = useState(null); // Geocoded point for roads/areas
   const mapRef = useRef(null);
-  const isZoomingToSearchRef = useRef(false); // Flag to prevent other zoom logic from interfering
 
   const apiKey = typeof window !== "undefined"
     ? (process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "")
@@ -215,22 +214,19 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
       setMapTypeId("roadmap");
 
       // Fast initialization - minimal setup
-      // Skip if we're currently zooming to a search location
-      if (!isZoomingToSearchRef.current) {
-        if (validListings.length === 1) {
-          const listing = validListings[0];
-          const lat = parseFloat(listing.Latitude || listing.LatitudeDecimal);
-          const lng = parseFloat(listing.Longitude || listing.LongitudeDecimal);
-          if (!isNaN(lat) && !isNaN(lng)) {
-            map.setCenter({ lat, lng });
-            map.setZoom(17);
-          }
-        } else if (validListings.length > 0) {
-          // Quick center - no complex calculations
-          map.setCenter(center);
-          map.setZoom(8);
-          setZoomLevel(8);
+      if (validListings.length === 1) {
+        const listing = validListings[0];
+        const lat = parseFloat(listing.Latitude || listing.LatitudeDecimal);
+        const lng = parseFloat(listing.Longitude || listing.LongitudeDecimal);
+        if (!isNaN(lat) && !isNaN(lng)) {
+          map.setCenter({ lat, lng });
+          map.setZoom(17);
         }
+      } else if (validListings.length > 0) {
+        // Quick center - no complex calculations
+        map.setCenter(center);
+        map.setZoom(8);
+        setZoomLevel(8);
       }
 
       map.addListener("zoom_changed", () => {
@@ -379,371 +375,64 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
   }, []);
 
   // ALWAYS geocode search query first to show exact searched location
-  // Then show properties if available, but keep focus on searched location
-  // This effect runs whenever searchQuery changes to immediately zoom to searched location
   useEffect(() => {
-    if (!mapRef.current || !isLoaded || !searchQuery) {
-      if (process.env.NODE_ENV === "development" && searchQuery) {
-        console.log("🔍 [MAP] Search query exists but map not ready:", {
-          hasMapRef: !!mapRef.current,
-          isLoaded,
-          searchQuery
-        });
-      }
-      // Reset flag when no search query
-      isZoomingToSearchRef.current = false;
-      return;
-    }
+    if (!mapRef.current || !isLoaded || !searchQuery) return;
 
     const searchAddress = searchQuery.trim();
-    if (!searchAddress) {
-      isZoomingToSearchRef.current = false;
-      return;
-    }
+    if (!searchAddress) return;
 
-    if (process.env.NODE_ENV === "development") {
-      console.log("🔍 [MAP] Geocoding search query:", searchAddress);
-    }
+    if (!window.google?.maps?.Geocoder) return;
 
-    // Clear previous search location marker when new search happens
-    setSearchLocation(null);
+    const geocoder = new window.google.maps.Geocoder();
 
-    // ALWAYS geocode the search query to show exact searched location
-    // Note: Geocoding is optional - if API is not enabled, map will still work
-    if (window.google?.maps?.Geocoder) {
-      // Store original console functions outside try block for catch block access
-      const originalError = console.error;
-      const originalWarn = console.warn;
-      const originalLog = console.log;
+    geocoder.geocode(
+      { address: searchAddress },
+      (results, status) => {
 
-      try {
-        // Completely suppress geocoding-related errors
-        const suppressGeocodingErrors = () => {
-          console.error = (...args) => {
-            const message = String(args.join(' ')).toLowerCase();
-            if (message.includes('geocoding') ||
-              message.includes('api key is not authorized') ||
-              message.includes('this api key is not authorized') ||
-              message.includes('geocoding service')) {
-              return; // Suppress geocoding errors
+        if (status === "OK" && results && results.length > 0) {
+
+          const location = results[0].geometry.location;
+
+          const lat = location.lat();
+          const lng = location.lng();
+
+          // 🔵 move map to searched location
+          mapRef.current.panTo({
+            lat,
+            lng
+          });
+
+          // 🔵 zoom to location
+          mapRef.current.setZoom(16);
+
+          // 🔵 show red search marker
+          setSearchLocation({
+            lat,
+            lng
+          });
+
+          // 🔵 trigger bounds update for property loading
+          if (onBoundsChange) {
+            const bounds = mapRef.current.getBounds();
+
+            if (bounds) {
+              const ne = bounds.getNorthEast();
+              const sw = bounds.getSouthWest();
+
+              onBoundsChange({
+                north: ne.lat(),
+                south: sw.lat(),
+                east: ne.lng(),
+                west: sw.lng()
+              });
             }
-            originalError.apply(console, args);
-          };
+          }
 
-          console.warn = (...args) => {
-            const message = String(args.join(' ')).toLowerCase();
-            if (message.includes('geocoding') ||
-              message.includes('api key') ||
-              message.includes('geocoding service')) {
-              return; // Suppress geocoding warnings
-            }
-            originalWarn.apply(console, args);
-          };
-        };
-
-        suppressGeocodingErrors();
-
-        const geocoder = new window.google.maps.Geocoder();
-
-        // Try multiple geocoding strategies for better results - works for any location name
-        const geocodeAttempts = [
-          `${searchAddress}, Nova Scotia, Canada`,
-          `${searchAddress}, Nova Scotia`,
-          searchAddress
-        ];
-
-        let attemptIndex = 0;
-
-        const tryGeocode = (address) => {
-          // Suppress errors during geocode call
-          suppressGeocodingErrors();
-
-          geocoder.geocode(
-            {
-              address: address,
-              region: "ca",
-            },
-            (results, status) => {
-              // Restore console immediately after callback
-              console.error = originalError;
-              console.warn = originalWarn;
-              console.log = originalLog;
-
-              if (status !== window.google.maps.GeocoderStatus.OK) {
-                attemptIndex++;
-                if (attemptIndex < geocodeAttempts.length) {
-                  tryGeocode(geocodeAttempts[attemptIndex]);
-                }
-                // Silently fail if all attempts fail - geocoding is optional
-                return;
-              }
-
-              // Console already restored above
-              if (results && results.length > 0 && mapRef.current) {
-                const result = results[0];
-                const location = result.geometry.location;
-                const bounds = result.geometry.bounds;
-                const viewport = result.geometry.viewport;
-
-                // Always set a marker at the geocoded point so user sees where the road/area is
-                const centerPoint = location ||
-                  (viewport ? viewport.getCenter() : null) ||
-                  (bounds ? bounds.getCenter() : null);
-                if (centerPoint) {
-                  setSearchLocation({ lat: centerPoint.lat(), lng: centerPoint.lng() });
-                }
-
-                // PRIORITY: Always zoom to search location first with high zoom
-                // Then adjust if properties exist
-                const zoomToSearchLocation = () => {
-                  if (!mapRef.current) {
-                    if (process.env.NODE_ENV === "development") {
-                      console.warn("🔍 [MAP] Cannot zoom - mapRef.current is null");
-                    }
-                    return;
-                  }
-
-                  // Set flag to prevent other zoom logic from interfering
-                  isZoomingToSearchRef.current = true;
-
-                  if (process.env.NODE_ENV === "development") {
-                    console.log("🔍 [MAP] Zooming to search location:", { hasBounds: !!bounds, hasViewport: !!viewport, hasLocation: !!location });
-                  }
-
-                  if (bounds) {
-                    // For bounds, center first then zoom
-                    const center = bounds.getCenter();
-                    mapRef.current.setCenter({ lat: center.lat(), lng: center.lng() });
-
-                    // Set zoom immediately to high level
-                    mapRef.current.setZoom(17);
-                    setZoomLevel(17);
-
-                    if (process.env.NODE_ENV === "development") {
-                      console.log("🔍 [MAP] Zoomed to bounds location at zoom 17");
-                    }
-
-                    // Also fit bounds with small padding for context, but keep zoom high
-                    mapRef.current.fitBounds(bounds, { padding: 10 });
-
-                    // Force zoom again after fitBounds (it might reduce zoom)
-                    const forceZoom = () => {
-                      if (mapRef.current) {
-                        const currentZoom = mapRef.current.getZoom();
-                        if (currentZoom < 17) {
-                          mapRef.current.setZoom(17);
-                          setZoomLevel(17);
-                          if (process.env.NODE_ENV === "development") {
-                            console.log("🔍 [MAP] Forced zoom back to 17");
-                          }
-                        }
-                      }
-                    };
-
-                    // Try multiple times to ensure zoom sticks
-                    setTimeout(forceZoom, 50);
-                    setTimeout(forceZoom, 150);
-                    setTimeout(forceZoom, 300);
-
-                    const zoomListener = mapRef.current.addListener("idle", () => {
-                      forceZoom();
-                      setTimeout(() => {
-                        isZoomingToSearchRef.current = false;
-                      }, 500);
-                      if (mapRef.current && zoomListener) {
-                        window.google.maps.event.removeListener(zoomListener);
-                      }
-                    });
-                  } else if (viewport) {
-                    // For viewport, center first then zoom
-                    const center = viewport.getCenter();
-                    mapRef.current.setCenter({ lat: center.lat(), lng: center.lng() });
-
-                    // Set zoom immediately to high level
-                    mapRef.current.setZoom(17);
-                    setZoomLevel(17);
-
-                    // Also fit viewport with small padding
-                    mapRef.current.fitBounds(viewport, { padding: 10 });
-
-                    const forceZoom = () => {
-                      if (mapRef.current) {
-                        const currentZoom = mapRef.current.getZoom();
-                        if (currentZoom < 17) {
-                          mapRef.current.setZoom(17);
-                          setZoomLevel(17);
-                        }
-                      }
-                    };
-
-                    setTimeout(forceZoom, 50);
-                    setTimeout(forceZoom, 150);
-                    setTimeout(forceZoom, 300);
-
-                    const zoomListener = mapRef.current.addListener("idle", () => {
-                      forceZoom();
-                      setTimeout(() => {
-                        isZoomingToSearchRef.current = false;
-                      }, 500);
-                      if (mapRef.current && zoomListener) {
-                        window.google.maps.event.removeListener(zoomListener);
-                      }
-                    });
-                  } else if (location) {
-                    // Point location - zoom directly to high level
-                    mapRef.current.setCenter({ lat: location.lat(), lng: location.lng() });
-                    mapRef.current.setZoom(18);
-                    setZoomLevel(18);
-                    if (process.env.NODE_ENV === "development") {
-                      console.log("🔍 [MAP] Zoomed to point location at zoom 18");
-                    }
-                    setTimeout(() => {
-                      isZoomingToSearchRef.current = false;
-                    }, 500);
-                  }
-                };
-
-                // ALWAYS zoom to search location first with high zoom
-                // This ensures search location is always visible and zoomed in
-                zoomToSearchLocation();
-
-                // If we have properties, adjust view to include them but keep search location priority
-                if (hasSearchResults && validListings.length > 0 && !searchLocation) {
-                  const propertyBounds = new window.google.maps.LatLngBounds();
-                  let hasPropertyCoords = false;
-
-                  validListings.forEach((listing) => {
-                    const lat = parseFloat(listing.Latitude || listing.LatitudeDecimal);
-                    const lng = parseFloat(listing.Longitude || listing.LongitudeDecimal);
-                    if (!isNaN(lat) && !isNaN(lng)) {
-                      propertyBounds.extend({ lat, lng });
-                      hasPropertyCoords = true;
-                    }
-                  });
-
-                  // After zooming to search location, adjust to include properties if they're nearby
-                  // But only if properties are close to search location (within reasonable distance)
-                  if (hasPropertyCoords && !propertyBounds.isEmpty() && centerPoint) {
-                    // Check if properties are close to search location
-                    let propertiesNearSearch = false;
-                    const searchLat = centerPoint.lat();
-                    const searchLng = centerPoint.lng();
-
-                    validListings.forEach((listing) => {
-                      const lat = parseFloat(listing.Latitude || listing.LatitudeDecimal);
-                      const lng = parseFloat(listing.Longitude || listing.LongitudeDecimal);
-                      if (!isNaN(lat) && !isNaN(lng)) {
-                        // Calculate distance (rough estimate in degrees)
-                        const latDiff = Math.abs(lat - searchLat);
-                        const lngDiff = Math.abs(lng - searchLng);
-                        // If within ~0.1 degrees (~11km), consider them close
-                        if (latDiff < 0.1 && lngDiff < 0.1) {
-                          propertiesNearSearch = true;
-                        }
-                      }
-                    });
-
-                    // Only adjust bounds if properties are near search location
-                    // Otherwise, keep zoomed in on search location
-                    if (propertiesNearSearch) {
-                      // Include search location in bounds
-                      if (bounds) {
-                        propertyBounds.union(bounds);
-                      } else if (viewport) {
-                        propertyBounds.union(viewport);
-                      } else if (location) {
-                        propertyBounds.extend({ lat: location.lat(), lng: location.lng() });
-                      }
-
-                      // Use smaller padding to keep zoom closer
-                      mapRef.current.fitBounds(propertyBounds, { padding: 30 });
-
-                      // Force minimum zoom to 15 to keep search location visible
-                      const setZoomAfterFit = () => {
-                        if (mapRef.current) {
-                          const currentZoom = mapRef.current.getZoom();
-                          if (currentZoom < 15) {
-                            mapRef.current.setZoom(15);
-                            setZoomLevel(15);
-                          } else {
-                            setZoomLevel(currentZoom);
-                          }
-                        }
-                      };
-
-                      setTimeout(setZoomAfterFit, 100);
-                      setTimeout(setZoomAfterFit, 300);
-                      const zoomListener = mapRef.current.addListener("idle", () => {
-                        setZoomAfterFit();
-                        if (mapRef.current && zoomListener) {
-                          window.google.maps.event.removeListener(zoomListener);
-                        }
-                      });
-                    }
-                    // If properties are far, don't adjust - keep zoomed on search location
-                  }
-                }
-
-                // Trigger bounds change after geocoding zoom so nearby properties can be fetched
-                // Use multiple strategies to ensure bounds are reported reliably
-                if (mapRef.current && onBoundsChange) {
-                  const reportBounds = () => {
-                    const b = mapRef.current?.getBounds();
-                    if (b) {
-                      const ne = b.getNorthEast();
-                      const sw = b.getSouthWest();
-
-                      const pad = 0.02;
-
-                      const latSpan = ne.lat() - sw.lat();
-                      const lngSpan = ne.lng() - sw.lng();
-
-                      onBoundsChange({
-                        north: ne.lat() + latSpan * pad,
-                        south: sw.lat() - latSpan * pad,
-                        east: ne.lng() + lngSpan * pad,
-                        west: sw.lng() - lngSpan * pad,
-                      });
-                    }
-                  };
-
-                  // Fast bounds reporting - immediate and on idle
-                  // Strategy 1: Report with small delay to ensure bounds are ready
-                  setTimeout(reportBounds, 50);
-
-                  // Strategy 2: Report on idle event (ensures accuracy after map renders)
-                  let idleListener = null;
-                  if (mapRef.current) {
-                    idleListener = mapRef.current.addListener("idle", () => {
-                      reportBounds();
-                      // Remove listener after first idle event
-                      if (mapRef.current && idleListener) {
-                        window.google.maps.event.removeListener(idleListener);
-                      }
-                    });
-                  }
-                }
-              }
-              // If all attempts fail, silently continue - geocoding is optional
-            });
-        };
-
-        // Start with first geocoding attempt
-        tryGeocode(geocodeAttempts[0]);
-      } catch (error) {
-        // Silently ignore all geocoding errors - geocoding is optional
-        // Restore console in case of exception
-        console.error = originalError;
-        console.warn = originalWarn;
-        console.log = originalLog;
+        }
       }
-    } else {
-      // Geocoding API not available - map will still work without search location marker
-      if (process.env.NODE_ENV === "development") {
-        console.log("🔍 [MAP] Geocoding API not available - search location marker disabled");
-      }
-    }
-  }, [searchQuery, isLoaded, validListings, hasSearchResults, onBoundsChange]);
+    );
+
+  }, [searchQuery, isLoaded, onBoundsChange]);
 
   // Update map center and zoom when listings change (only if no search query)
   useEffect(() => {
