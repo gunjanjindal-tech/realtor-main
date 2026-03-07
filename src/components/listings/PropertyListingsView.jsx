@@ -87,10 +87,10 @@ export default function PropertyListingsView() {
 
         if (hasSearchQuery) {
           params.append("q", searchQuery.trim());
-          if (filters.minPrice) params.append("minPrice", filters.minPrice);
-          if (filters.maxPrice) params.append("maxPrice", filters.maxPrice);
-          if (filters.minBeds) params.append("minBeds", filters.minBeds);
-          if (filters.minBaths) params.append("minBaths", filters.minBaths);
+          if (filters.minPrice && filters.minPrice !== "") params.append("minPrice", filters.minPrice);
+          if (filters.maxPrice && filters.maxPrice !== "") params.append("maxPrice", filters.maxPrice);
+          if (filters.minBeds && filters.minBeds !== "") params.append("minBeds", filters.minBeds);
+          if (filters.minBaths && filters.minBaths !== "") params.append("minBaths", filters.minBaths);
 
           const response = await fetch(`/api/bridge/search?${params}`);
           const data = await response.json();
@@ -105,12 +105,23 @@ export default function PropertyListingsView() {
           setTotal(data.total || 0);
           setIsRelatedResults(data.isRelated || false);
         } else {
-          if (filters.minPrice) params.append("minPrice", filters.minPrice);
-          if (filters.maxPrice) params.append("maxPrice", filters.maxPrice);
-          if (filters.minBeds) params.append("minBeds", filters.minBeds);
-          if (filters.minBaths) params.append("minBaths", filters.minBaths);
+          if (filters.minPrice && filters.minPrice !== "") params.append("minPrice", filters.minPrice);
+          if (filters.maxPrice && filters.maxPrice !== "") params.append("maxPrice", filters.maxPrice);
+          if (filters.minBeds && filters.minBeds !== "") params.append("minBeds", filters.minBeds);
+          if (filters.minBaths && filters.minBaths !== "") params.append("minBaths", filters.minBaths);
 
           const apiUrl = listingType === "rent" ? "/api/bridge/rent" : "/api/bridge/buy";
+          
+          if (process.env.NODE_ENV === "development") {
+            console.log("🔍 Fetching listings with filters:", {
+              minPrice: filters.minPrice,
+              maxPrice: filters.maxPrice,
+              minBeds: filters.minBeds,
+              minBaths: filters.minBaths,
+              url: `${apiUrl}?${params}`
+            });
+          }
+          
           const response = await fetch(`${apiUrl}?${params}`);
           const data = await response.json();
 
@@ -137,6 +148,11 @@ export default function PropertyListingsView() {
 
     fetchListings();
   }, [page, limit, listingType, searchQuery, filters.minPrice, filters.maxPrice, filters.minBeds, filters.minBaths]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [filters.minPrice, filters.maxPrice, filters.minBeds, filters.minBaths]);
 
   // Fetch ALL properties for map (not paginated) - separate from list view
   useEffect(() => {
@@ -453,11 +469,28 @@ export default function PropertyListingsView() {
   }, [searchInputValue, searchQuery]);
 
   useEffect(() => {
-  setFilters((prev) => ({
-    ...prev,
-    minPrice: priceRange[0],
-    maxPrice: priceRange[1],
-  }));
+    // Only set price filters if they are NOT default values
+    // Default: min=0, max=2000000 (no filter applied)
+    const DEFAULT_MIN = 0;
+    const DEFAULT_MAX = 2000000;
+    const SLIDER_MAX = 10000000;
+    
+    // Only send minPrice if it's greater than default (0)
+    const minPrice = priceRange[0] > DEFAULT_MIN ? priceRange[0].toString() : "";
+    
+    // Only send maxPrice if:
+    // - It's NOT the default (2000000) - default means no filter
+    // - AND it's NOT the slider max (10000000) - slider max means no upper limit
+    // So send only if user set a value between default and slider max
+    const maxPrice = (priceRange[1] !== DEFAULT_MAX && priceRange[1] !== SLIDER_MAX) 
+      ? priceRange[1].toString() 
+      : "";
+    
+    setFilters((prev) => ({
+      ...prev,
+      minPrice: minPrice,
+      maxPrice: maxPrice,
+    }));
   }, [priceRange]);
   
 

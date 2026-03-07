@@ -119,8 +119,7 @@ export default function PropertyDetailClient() {
         </div>
       </section>
 
-      <PremiumBuyerCTA />
-      <PropertyMap listing={listing} />
+    
     </>
   );
 }
