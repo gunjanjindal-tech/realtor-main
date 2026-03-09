@@ -1,14 +1,22 @@
 "use client";
 
-import { Linkedin, Instagram, Facebook } from "lucide-react";
+import { useState } from "react";
+import { Linkedin, Instagram, Facebook, Lock } from "lucide-react";
 import Link from "next/link";
+import LoginModal from "./LoginModal";
 
 export default function Footer() {
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+
   const handleCookiePreferences = () => {
     if (typeof window !== "undefined") {
       localStorage.removeItem("cookie_consent");
       window.location.reload();
     }
+  };
+
+  const handleLoginSuccess = () => {
+    setIsLoginModalOpen(false);
   };
 
   return (
@@ -177,10 +185,26 @@ export default function Footer() {
             >
               <Facebook size={18} />
             </a>
+
+            {/* Admin Login Lock Icon */}
+            <button
+              onClick={() => setIsLoginModalOpen(true)}
+              className="hover:text-white transition cursor-pointer"
+              title="Admin Login"
+            >
+              <Lock size={18} />
+            </button>
           </div>
         </div>
 
       </div>
+
+      {/* Login Modal */}
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+        onLoginSuccess={handleLoginSuccess}
+      />
     </footer>
   );
 }

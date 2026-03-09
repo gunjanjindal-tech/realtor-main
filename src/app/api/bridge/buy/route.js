@@ -1,3 +1,9 @@
+// Ensure this route is properly registered by Next.js
+// If you see 404 errors, try:
+// 1. Restart the Next.js dev server
+// 2. Clear .next folder: rm -rf .next (or delete .next folder)
+// 3. Check that BRIDGE_SERVER_TOKEN is set in .env.local
+
 import { bridgeFetch } from "@/lib/bridgeClient";
 import { DATASET_ID } from "@/lib/bridgeConfig";
 
@@ -10,6 +16,14 @@ const AREA_TO_FILTER = {
 };
 
 export async function GET(req) {
+  // Handle case where req.url might not be available (shouldn't happen in Next.js 13+)
+  if (!req || !req.url) {
+    return Response.json(
+      { error: "Invalid request object", listings: [], total: 0 },
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
   const { searchParams } = new URL(req.url);
 
   const page = Number(searchParams.get("page") || 1);

@@ -18,6 +18,7 @@ export default function FullMenu({ close }) {
     { label: "Sell", href: "/sell" },
     { label: "New Development", href: "/new-development" },
     { label: "About", href: "/about" },
+    { label: "Blog", href: "/blog" },
     { label: "Contact Us", href: "/contact" },
   ];
 

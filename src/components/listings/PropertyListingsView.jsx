@@ -18,7 +18,18 @@ export default function PropertyListingsView() {
   const router = useRouter();
   const searchParams = useSearchParams();
   // Get listing type from URL, default to "sale"
-  const listingType = (searchParams?.get("type") || "sale") === "rent" ? "rent" : "sale";
+  // Support: "rent", "sale", "new-development", "sell"
+  const typeParam = searchParams?.get("type") || "sale";
+  let listingType;
+  if (typeParam === "rent") {
+    listingType = "rent";
+  } else if (typeParam === "new-development" || typeParam === "newDevelopment") {
+    listingType = "new-development";
+  } else if (typeParam === "sell") {
+    listingType = "sell";
+  } else {
+    listingType = "sale"; // Default to sale
+  }
 
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -32,7 +43,12 @@ export default function PropertyListingsView() {
   // Nearby fallback listings (when search returns 0 results): show properties near searched location
   const [nearbyListings, setNearbyListings] = useState([]);
   // Default view: "split" for server render (consistent), will be updated on client
-  const [viewMode, setViewMode] = useState("split");
+const [viewMode, setViewMode] = useState(() => {
+  if (typeof window !== "undefined") {
+    return window.innerWidth < 768 ? "list" : "split";
+  }
+  return "split";
+});
   const [isMounted, setIsMounted] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchInputValue, setSearchInputValue] = useState(""); // Separate state for input display
@@ -50,8 +66,8 @@ export default function PropertyListingsView() {
   // Price slider state
   const [priceRange, setPriceRange] = useState([0, 2000000]);
   const [showPricePopup, setShowPricePopup] = useState(false);
-  
-  
+
+
   const limit = LISTINGS_LIMIT;
   const fetchIdRef = useRef(0);
   const mapFetchIdRef = useRef(0);
@@ -78,9 +94,12 @@ export default function PropertyListingsView() {
       setError(null);
 
       try {
+        // For search, use smaller limit for faster initial load, then load more if needed
+        const searchLimit = (searchQuery && searchQuery.trim().length > 0) ? 50 : limit;
+        
         const params = new URLSearchParams({
           page: page.toString(),
-          limit: limit.toString(),
+          limit: searchLimit.toString(),
         });
 
         const hasSearchQuery = searchQuery && searchQuery.trim().length > 0;
@@ -93,6 +112,23 @@ export default function PropertyListingsView() {
           if (filters.minBaths && filters.minBaths !== "") params.append("minBaths", filters.minBaths);
 
           const response = await fetch(`/api/bridge/search?${params}`);
+
+          if (!response.ok) {
+            const errorText = await response.text().catch(() => "Unknown error");
+            // Check if response is HTML (404 page) or JSON
+            const isHTML = errorText.trim().startsWith("<!DOCTYPE") || errorText.trim().startsWith("<html");
+            throw new Error(isHTML
+              ? `API route not found (${response.status}). The server returned an HTML error page.`
+              : `HTTP error! status: ${response.status}`);
+          }
+
+          // Check content type before parsing JSON
+          const contentType = response.headers.get("content-type");
+          if (!contentType || !contentType.includes("application/json")) {
+            const text = await response.text();
+            throw new Error(`Expected JSON but got ${contentType || "unknown content type"}. Response: ${text.substring(0, 100)}`);
+          }
+
           const data = await response.json();
 
           if (currentFetchId !== fetchIdRef.current) return;
@@ -101,17 +137,30 @@ export default function PropertyListingsView() {
             throw new Error(data.error);
           }
 
+          // Set listings IMMEDIATELY to show results fast
           setListings(data.listings || []);
           setTotal(data.total || 0);
           setIsRelatedResults(data.isRelated || false);
+          // Set loading to false immediately after setting listings
+          setLoading(false);
         } else {
           if (filters.minPrice && filters.minPrice !== "") params.append("minPrice", filters.minPrice);
           if (filters.maxPrice && filters.maxPrice !== "") params.append("maxPrice", filters.maxPrice);
           if (filters.minBeds && filters.minBeds !== "") params.append("minBeds", filters.minBeds);
           if (filters.minBaths && filters.minBaths !== "") params.append("minBaths", filters.minBaths);
 
-          const apiUrl = listingType === "rent" ? "/api/bridge/rent" : "/api/bridge/buy";
-          
+          // Determine API endpoint based on listing type
+          let apiUrl;
+          if (listingType === "rent") {
+            apiUrl = "/api/bridge/rent";
+          } else if (listingType === "new-development") {
+            apiUrl = "/api/bridge/new-development";
+          } else if (listingType === "sell") {
+            apiUrl = "/api/bridge/sell";
+          } else {
+            apiUrl = "/api/bridge/buy"; // Default to buy for sale
+          }
+
           if (process.env.NODE_ENV === "development") {
             console.log("🔍 Fetching listings with filters:", {
               minPrice: filters.minPrice,
@@ -121,8 +170,25 @@ export default function PropertyListingsView() {
               url: `${apiUrl}?${params}`
             });
           }
-          
+
           const response = await fetch(`${apiUrl}?${params}`);
+
+          if (!response.ok) {
+            const errorText = await response.text().catch(() => "Unknown error");
+            // Check if response is HTML (404 page) or JSON
+            const isHTML = errorText.trim().startsWith("<!DOCTYPE") || errorText.trim().startsWith("<html");
+            throw new Error(isHTML
+              ? `API route not found (${response.status}). The server returned an HTML error page.`
+              : `HTTP error! status: ${response.status}`);
+          }
+
+          // Check content type before parsing JSON
+          const contentType = response.headers.get("content-type");
+          if (!contentType || !contentType.includes("application/json")) {
+            const text = await response.text();
+            throw new Error(`Expected JSON but got ${contentType || "unknown content type"}. Response: ${text.substring(0, 100)}`);
+          }
+
           const data = await response.json();
 
           if (currentFetchId !== fetchIdRef.current) return;
@@ -131,18 +197,18 @@ export default function PropertyListingsView() {
             throw new Error(data.error);
           }
 
+          // Set listings IMMEDIATELY to show results fast
           setListings(data.listings || []);
           setTotal(data.total || 0);
           setIsRelatedResults(false); // Not a search, so not related results
+          // Set loading to false immediately after setting listings
+          setLoading(false);
         }
       } catch (err) {
         if (currentFetchId !== fetchIdRef.current) return;
         setError(err.message);
         console.error("Error fetching listings:", err);
-      } finally {
-        if (currentFetchId === fetchIdRef.current) {
-          setLoading(false);
-        }
+        setLoading(false); // Set loading to false on error too
       }
     }
 
@@ -160,39 +226,92 @@ export default function PropertyListingsView() {
 
     async function fetchAllMapListings() {
       setMapLoading(true);
-      
+
       try {
         const params = new URLSearchParams();
-        // Bridge API max is 200 per request - fetch first page to get total
-        params.append("limit", "200");
+        // For search, use same limit as list view (50) for faster initial load and synchronization
+        // For non-search, use 200 to get more properties for map
+        const mapLimit = (searchQuery && searchQuery.trim().length > 0) ? 50 : 200;
+        params.append("limit", mapLimit.toString());
         params.append("page", "1");
-        
+
         // Include search query if present
         if (searchQuery && searchQuery.trim().length > 0) {
           params.append("q", searchQuery.trim());
         }
-        
+
         if (filters.minPrice) params.append("minPrice", filters.minPrice);
         if (filters.maxPrice) params.append("maxPrice", filters.maxPrice);
         if (filters.minBeds) params.append("minBeds", filters.minBeds);
         if (filters.minBaths) params.append("minBaths", filters.minBaths);
 
-        // Use search API if there's a query, otherwise use buy/rent API
-        const apiUrl = (searchQuery && searchQuery.trim().length > 0) 
-          ? "/api/bridge/search" 
-          : (listingType === "rent" ? "/api/bridge/rent" : "/api/bridge/buy");
-        
+        // Use search API if there's a query, otherwise use appropriate API based on listing type
+        let apiUrl;
+        if (searchQuery && searchQuery.trim().length > 0) {
+          apiUrl = "/api/bridge/search";
+        } else if (listingType === "rent") {
+          apiUrl = "/api/bridge/rent";
+        } else if (listingType === "new-development") {
+          apiUrl = "/api/bridge/new-development";
+        } else if (listingType === "sell") {
+          apiUrl = "/api/bridge/sell";
+        } else {
+          apiUrl = "/api/bridge/buy"; // Default to buy for sale
+        }
+
         if (process.env.NODE_ENV === "development") {
           console.log("🗺️ Fetching map listings from:", apiUrl);
         }
-        
+
         // Fetch first page to get total count
-        const response = await fetch(`${apiUrl}?${params}`);
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+        const fullUrl = `${apiUrl}?${params}`;
+
+        if (process.env.NODE_ENV === "development") {
+          console.log("🗺️ Fetching map listings from:", fullUrl);
         }
-        
+
+        const response = await fetch(fullUrl);
+
+        if (!response.ok) {
+          // Handle 404 and other errors gracefully
+          const errorText = await response.text().catch(() => "Unknown error");
+          // Check if response is HTML (404 page)
+          const isHTML = errorText.trim().startsWith("<!DOCTYPE") || errorText.trim().startsWith("<html");
+
+          console.error(`❌ HTTP error fetching map listings: ${response.status}`, {
+            url: fullUrl,
+            status: response.status,
+            statusText: response.statusText,
+            isHTML,
+            errorPreview: isHTML ? "HTML error page" : errorText.substring(0, 200)
+          });
+
+          // For 404, return empty results instead of throwing
+          if (response.status === 404) {
+            console.warn("⚠️ API route not found (404). This may indicate the route is not available yet or the URL is incorrect.");
+            if (allMapListings.length === 0) {
+              setAllMapListings([]);
+            }
+            return;
+          }
+
+          throw new Error(isHTML
+            ? `API route not found (${response.status}). The server returned an HTML error page.`
+            : `HTTP error! status: ${response.status}`);
+        }
+
+        // Check content type before parsing JSON
+        const contentType = response.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+          const text = await response.text();
+          console.error("❌ Expected JSON but got:", contentType || "unknown content type", "Response preview:", text.substring(0, 200));
+          // For non-JSON responses, return empty results
+          if (allMapListings.length === 0) {
+            setAllMapListings([]);
+          }
+          return;
+        }
+
         const data = await response.json();
 
         if (currentMapFetchId !== mapFetchIdRef.current) return;
@@ -206,33 +325,52 @@ export default function PropertyListingsView() {
         } else {
           let fetchedListings = data.listings || [];
           const totalProperties = data.total || 0;
-          
+
           if (process.env.NODE_ENV === "development") {
             console.log("✅ Map listings first page:", {
               count: fetchedListings.length,
               total: totalProperties,
             });
           }
-          
+
           // Calculate total pages needed (200 per page)
-          // Limit to first 5 pages (1000 properties) for faster initial load
-          const totalPages = Math.min(Math.ceil(totalProperties / 200), 5);
-          
+          // Fetch ALL pages to show all properties on map (city clusters need all data)
+          const totalPages = Math.ceil(totalProperties / 200);
+
           // Fetch remaining pages in parallel for faster loading (limited to 5 pages)
           if (totalPages > 1) {
             const pagePromises = [];
-            
-            // Create promises for remaining pages (2, 3, 4, ... up to 10)
+
+            // Create promises for all remaining pages (2, 3, 4, ... up to totalPages)
             for (let page = 2; page <= totalPages; page++) {
               const pageParams = new URLSearchParams(params);
               pageParams.set("page", page.toString());
-              
+
               pagePromises.push(
                 fetch(`${apiUrl}?${pageParams}`)
-                  .then(res => res.ok ? res.json() : null)
+                  .then(async res => {
+                    if (!res.ok) {
+                      const text = await res.text().catch(() => "");
+                      const isHTML = text.trim().startsWith("<!DOCTYPE") || text.trim().startsWith("<html");
+                      if (process.env.NODE_ENV === "development") {
+                        console.warn(`Failed to fetch page ${page} for map: ${res.status}`, isHTML ? "HTML error page" : text.substring(0, 100));
+                      }
+                      return null;
+                    }
+                    const contentType = res.headers.get("content-type");
+                    if (!contentType || !contentType.includes("application/json")) {
+                      if (process.env.NODE_ENV === "development") {
+                        console.warn(`Page ${page} returned non-JSON: ${contentType}`);
+                      }
+                      return null;
+                    }
+                    return res.json();
+                  })
                   .then(pageData => pageData?.listings || [])
                   .catch(err => {
-                    console.warn(`Failed to fetch page ${page} for map:`, err);
+                    if (process.env.NODE_ENV === "development") {
+                      console.warn(`Failed to fetch page ${page} for map:`, err.message);
+                    }
                     return [];
                   })
               );
@@ -240,11 +378,11 @@ export default function PropertyListingsView() {
 
             // Wait for all pages to fetch in parallel
             const additionalListingsArrays = await Promise.all(pagePromises);
-            
+
             // Flatten all results into single array
             const additionalListings = additionalListingsArrays.flat();
             fetchedListings = [...fetchedListings, ...additionalListings];
-            
+
             if (process.env.NODE_ENV === "development") {
               console.log("✅ Map listings all pages fetched:", {
                 totalFetched: fetchedListings.length,
@@ -252,7 +390,7 @@ export default function PropertyListingsView() {
               });
             }
           }
-          
+
           let allFetchedListings = fetchedListings;
 
           // Also fetch sold properties from sell API (only if not searching)
@@ -262,34 +400,46 @@ export default function PropertyListingsView() {
                 page: "1",
                 limit: "200", // Bridge API max is 200
               });
-              
+
               const sellResponse = await fetch(`/api/bridge/sell?${sellParams}`);
               if (sellResponse.ok) {
+                // Check content type before parsing JSON
+                const contentType = sellResponse.headers.get("content-type");
+                if (!contentType || !contentType.includes("application/json")) {
+                  throw new Error(`Sell API returned non-JSON: ${contentType || "unknown"}`);
+                }
                 const sellData = await sellResponse.json();
                 let sellListings = sellData.listings || [];
                 const sellTotal = sellData.total || 0;
-                
-                // Fetch remaining pages if needed (limit to 3 pages for performance)
+
+                // Fetch ALL remaining pages for sold properties
                 if (sellTotal > 200) {
-                  const sellTotalPages = Math.min(Math.ceil(sellTotal / 200), 3);
+                  const sellTotalPages = Math.ceil(sellTotal / 200);
                   const sellPagePromises = [];
-                  
+
                   for (let p = 2; p <= sellTotalPages; p++) {
                     const pageParams = new URLSearchParams(sellParams);
                     pageParams.set("page", p.toString());
-                    
+
                     sellPagePromises.push(
                       fetch(`/api/bridge/sell?${pageParams}`)
-                        .then(res => res.ok ? res.json() : null)
+                        .then(async res => {
+                          if (!res.ok) return null;
+                          const contentType = res.headers.get("content-type");
+                          if (!contentType || !contentType.includes("application/json")) {
+                            return null;
+                          }
+                          return res.json();
+                        })
                         .then(pageData => pageData?.listings || [])
                         .catch(() => [])
                     );
                   }
-                  
+
                   const additionalSellListings = await Promise.all(sellPagePromises);
                   sellListings = [...sellListings, ...additionalSellListings.flat()];
                 }
-                
+
                 // Mark as from sell API
                 const markedSold = sellListings.map(l => ({
                   ...l,
@@ -297,9 +447,9 @@ export default function PropertyListingsView() {
                   Status: l.Status || "Sold",
                   isFromSellAPI: true
                 }));
-                
+
                 allFetchedListings = [...allFetchedListings, ...markedSold];
-                
+
                 if (process.env.NODE_ENV === "development") {
                   console.log("✅ Sold properties from sell API:", markedSold.length);
                 }
@@ -308,7 +458,7 @@ export default function PropertyListingsView() {
               console.warn("⚠️ Could not fetch sold properties from sell API:", err);
             }
           }
-          
+
           if (currentMapFetchId === mapFetchIdRef.current) {
             setAllMapListings(allFetchedListings);
             if (process.env.NODE_ENV === "development") {
@@ -318,7 +468,27 @@ export default function PropertyListingsView() {
         }
       } catch (err) {
         if (currentMapFetchId === mapFetchIdRef.current) {
-          console.error("❌ Error fetching all map listings:", err);
+          // Determine API URL for error logging
+          let errorApiUrl;
+          if (searchQuery && searchQuery.trim().length > 0) {
+            errorApiUrl = "/api/bridge/search";
+          } else if (listingType === "rent") {
+            errorApiUrl = "/api/bridge/rent";
+          } else if (listingType === "new-development") {
+            errorApiUrl = "/api/bridge/new-development";
+          } else if (listingType === "sell") {
+            errorApiUrl = "/api/bridge/sell";
+          } else {
+            errorApiUrl = "/api/bridge/buy";
+          }
+          
+          console.error("❌ Error fetching all map listings:", {
+            error: err.message,
+            stack: err.stack,
+            apiUrl: errorApiUrl,
+            listingType,
+            hasSearchQuery: !!(searchQuery && searchQuery.trim().length > 0)
+          });
           // Don't clear existing listings on error - keep them as fallback
           if (allMapListings.length === 0) {
             setAllMapListings([]);
@@ -332,6 +502,7 @@ export default function PropertyListingsView() {
     }
 
     fetchAllMapListings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listingType, searchQuery, filters.minPrice, filters.maxPrice, filters.minBeds, filters.minBaths]);
 
   // If search returns 0 results, fetch nearby properties in the current map bounds (after geocode centers the map)
@@ -380,26 +551,47 @@ export default function PropertyListingsView() {
         if (filters.minBaths) params.append("minBaths", filters.minBaths);
 
         const res1 = await fetch(`/api/bridge/nearby?${params}`);
+
+        if (!res1.ok) {
+          const errorText = await res1.text().catch(() => "Unknown error");
+          const isHTML = errorText.trim().startsWith("<!DOCTYPE") || errorText.trim().startsWith("<html");
+          throw new Error(isHTML
+            ? `API route not found (${res1.status}). The server returned an HTML error page.`
+            : `Nearby fetch failed (${res1.status})`);
+        }
+
+        // Check content type before parsing JSON
+        const contentType1 = res1.headers.get("content-type");
+        if (!contentType1 || !contentType1.includes("application/json")) {
+          const text = await res1.text();
+          throw new Error(`Expected JSON but got ${contentType1 || "unknown content type"}`);
+        }
+
         const data1 = await res1.json();
         if (currentNearbyFetchId !== nearbyFetchIdRef.current) return;
 
-        if (!res1.ok || data1?.error) {
-          throw new Error(data1?.error || `Nearby fetch failed (${res1.status})`);
+        if (data1?.error) {
+          throw new Error(data1.error);
         }
 
         let combined = data1.listings || [];
         const totalNearby = Number(data1.total || combined.length);
 
-        // Fetch one more page for better coverage (max ~400 markers)
-        const totalPages = Math.min(Math.ceil(totalNearby / 200), 3);
+        // Fetch one more page for better coverage (limit to 2 pages for faster load)
+        const totalPages = Math.min(Math.ceil(totalNearby / 200), 2);
         if (totalPages > 1) {
           const p2 = new URLSearchParams(params);
           p2.set("page", "2");
           const res2 = await fetch(`/api/bridge/nearby?${p2}`);
-          const data2 = await res2.json();
-          if (currentNearbyFetchId !== nearbyFetchIdRef.current) return;
-          if (res2.ok && !data2?.error) {
-            combined = [...combined, ...(data2.listings || [])];
+          if (res2.ok) {
+            const contentType2 = res2.headers.get("content-type");
+            if (contentType2 && contentType2.includes("application/json")) {
+              const data2 = await res2.json();
+              if (currentNearbyFetchId !== nearbyFetchIdRef.current) return;
+              if (!data2?.error) {
+                combined = [...combined, ...(data2.listings || [])];
+              }
+            }
           }
         }
 
@@ -454,7 +646,7 @@ export default function PropertyListingsView() {
   const totalPages = Math.max(1, Math.ceil(total / limit));
   const hasPagination = totalPages > 1;
 
-  // Real-time search as user types (debounced) - don't persist in URL
+  // Real-time search as user types (debounced) - smooth and responsive
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       const trimmedValue = searchInputValue.trim();
@@ -463,7 +655,7 @@ export default function PropertyListingsView() {
         setPage(1);
         // Don't update URL - let it clear on refresh/back
       }
-    }, 150); // 150ms debounce - faster response
+    }, 200); // 200ms debounce - faster response for smooth UX
 
     return () => clearTimeout(timeoutId);
   }, [searchInputValue, searchQuery]);
@@ -474,25 +666,25 @@ export default function PropertyListingsView() {
     const DEFAULT_MIN = 0;
     const DEFAULT_MAX = 2000000;
     const SLIDER_MAX = 10000000;
-    
+
     // Only send minPrice if it's greater than default (0)
     const minPrice = priceRange[0] > DEFAULT_MIN ? priceRange[0].toString() : "";
-    
+
     // Only send maxPrice if:
     // - It's NOT the default (2000000) - default means no filter
     // - AND it's NOT the slider max (10000000) - slider max means no upper limit
     // So send only if user set a value between default and slider max
-    const maxPrice = (priceRange[1] !== DEFAULT_MAX && priceRange[1] !== SLIDER_MAX) 
-      ? priceRange[1].toString() 
+    const maxPrice = (priceRange[1] !== DEFAULT_MAX && priceRange[1] !== SLIDER_MAX)
+      ? priceRange[1].toString()
       : "";
-    
+
     setFilters((prev) => ({
       ...prev,
       minPrice: minPrice,
       maxPrice: maxPrice,
     }));
   }, [priceRange]);
-  
+
 
   function handleSearch(e) {
     e.preventDefault();
@@ -506,52 +698,102 @@ export default function PropertyListingsView() {
   // Listings with valid coordinates for map - prioritize search results (exact or related), then allMapListings
   const mapListings = useMemo(() => {
     // Source selection:
-    // - If search returned properties (exact/related): use `listings`
+    // - If searching and we have search results: use `allMapListings` (has all pages of search results from map fetch)
+    //   OR fallback to `listings` if allMapListings is still loading/empty (for immediate display)
     // - If search returned 0: use `nearbyListings` (bounds-based) fallback; else fall back to `allMapListings`
     // - If not searching: use `allMapListings` for full map view
-   const sourceListings = hasSearchResults
-  ? listings
-  : hasSearchQuery
-    ? nearbyListings
-    : (allMapListings.length > 0 ? allMapListings : listings);
+    let sourceListings;
     
+    if (hasSearchQuery) {
+      if (hasSearchResults) {
+        // When searching and we have results, IMMEDIATELY use listings (they have search results right away)
+        // Then merge with allMapListings when it loads (to get all pages if available)
+        if (allMapListings.length > 0) {
+          // Merge both to get all pages - use allMapListings as base, add any from listings that aren't in allMapListings
+          // Use multiple ID fields to match listings properly
+          const allMapIds = new Set();
+          allMapListings.forEach(l => {
+            const id = l.ListingId || l.Id || l.MlsNumber || l.MLSNumber;
+            if (id) allMapIds.add(String(id));
+          });
+          
+          const additionalFromListings = listings.filter(l => {
+            const id = l.ListingId || l.Id || l.MlsNumber || l.MLSNumber;
+            return id && !allMapIds.has(String(id));
+          });
+          sourceListings = [...allMapListings, ...additionalFromListings];
+        } else {
+          // allMapListings not loaded yet, use listings immediately so markers show right away
+          sourceListings = listings;
+        }
+      } else {
+        // Search returned 0 results, use nearbyListings fallback
+        sourceListings = nearbyListings.length > 0 ? nearbyListings : allMapListings;
+      }
+    } else {
+      // Not searching, use allMapListings for full map view
+      sourceListings = allMapListings.length > 0 ? allMapListings : listings;
+    }
+
     const filtered = sourceListings.filter(
       (listing) => {
-        const lat = listing.Latitude || listing.LatitudeDecimal;
-        const lng = listing.Longitude || listing.LongitudeDecimal;
-        return lat && lng && !isNaN(parseFloat(lat)) && !isNaN(parseFloat(lng));
+        // Check multiple possible coordinate field names
+        const lat = listing.Latitude || listing.LatitudeDecimal || listing.latitude || listing.lat;
+        const lng = listing.Longitude || listing.LongitudeDecimal || listing.longitude || listing.lng || listing.lon;
+        
+        // Convert to number and validate
+        const latNum = lat != null ? parseFloat(lat) : NaN;
+        const lngNum = lng != null ? parseFloat(lng) : NaN;
+        
+        // Check if valid numbers and within valid ranges
+        return !isNaN(latNum) && !isNaN(lngNum) &&
+          latNum >= -90 && latNum <= 90 &&
+          lngNum >= -180 && lngNum <= 180;
       }
     );
-    
+
     // Debug: Log when search is active to verify related properties are being passed
-    if (process.env.NODE_ENV === "development" && hasSearchQuery) {
+    if (hasSearchQuery) {
       console.log("🗺️ Map Listings for Search:", {
         searchQuery,
         isRelatedResults,
         totalListings: listings.length,
+        allMapListingsCount: allMapListings.length,
+        sourceListingsCount: sourceListings.length,
         listingsWithCoords: filtered.length,
-        source: hasSearchResults ? "listings (search results)" : (nearbyListings.length > 0 ? "nearbyListings (bounds fallback)" : "allMapListings (fallback)")
+        source: hasSearchResults 
+          ? (allMapListings.length > 0 ? "merged (listings + allMapListings)" : "listings (immediate)") 
+          : (nearbyListings.length > 0 ? "nearbyListings (bounds fallback)" : "allMapListings (fallback)"),
+        sampleCoords: filtered.length > 0 ? {
+          lat: filtered[0].Latitude || filtered[0].LatitudeDecimal,
+          lng: filtered[0].Longitude || filtered[0].LongitudeDecimal
+        } : null
       });
     }
-    
+
     return filtered;
   }, [allMapListings, listings, hasSearchQuery, hasSearchResults, nearbyListings, searchQuery, isRelatedResults]);
 
   // When map is zoomed/panned: show listings in visible area + buffer so bagal (nearby) properties stay visible
-  // Use allMapListings if available (for map filtering), otherwise use current page listings
+  // IMPORTANT: When searching and results found, ALWAYS show ALL search results (don't filter by map bounds)
   const displayedListings = useMemo(() => {
+    // If searching and we have results, ALWAYS show ALL search results (don't filter by map bounds)
+    if (hasSearchQuery && hasSearchResults) {
+      return listings; // Show all search results regardless of map bounds
+    }
+
     if (!mapBounds) {
       if (hasSearchQuery && !hasSearchResults && nearbyListings.length > 0) return nearbyListings;
       return listings;
     }
-    
+
     // When search returned 0 results, prefer nearbyListings (already bounds-based).
     // Otherwise use allMapListings for accurate "visible on map" filtering.
     const sourceListings =
       hasSearchQuery && !hasSearchResults && nearbyListings.length > 0
         ? nearbyListings
         : (allMapListings.length > 0 ? allMapListings : listings);
-    
+
     const { north, south, east, west } = mapBounds;
     return sourceListings.filter((listing) => {
       const lat = parseFloat(listing.Latitude || listing.LatitudeDecimal);
@@ -562,21 +804,38 @@ export default function PropertyListingsView() {
   }, [listings, allMapListings, nearbyListings, mapBounds, hasSearchQuery, hasSearchResults]);
 
   function formatPriceLabel(value) {
-  if (value >= 1000000) {
-    return `$${(value / 1000000).toFixed(0)}M`;
+    if (value >= 1000000) {
+      return `$${(value / 1000000).toFixed(0)}M`;
+    }
+    if (value >= 1000) {
+      return `$${(value / 1000).toFixed(0)}K`;
+    }
+    return `$${value}`;
   }
-  if (value >= 1000) {
-    return `$${(value / 1000).toFixed(0)}K`;
-  }
-  return `$${value}`;
-}
 
-function formatPriceInput(value) {
-  return `$${value.toLocaleString()}`;
-}
+  function formatPriceInput(value) {
+    return `$${value.toLocaleString()}`;
+  }
 
   return (
-  <div className="bg-[#0B1F3A] min-h-screen" style={{ paddingTop: '22px', overflow: 'hidden', height: '100vh' }}>
+<div className="bg-[#0B1F3A] min-h-screen"
+     style={{ paddingTop: '22px' }}>      {/* Smooth fade-in animation for property cards */}
+      <style dangerouslySetInnerHTML={{
+        __html: `
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .animate-fadeIn {
+          animation: fadeIn 0.3s ease-in-out both;
+        }
+      `}} />
 
       {/* HEADER sitting on blue */}
       <Header />
@@ -600,6 +859,11 @@ function formatPriceInput(value) {
               <div className="flex gap-2">
                 <div className="flex-1 relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  {loading && searchInputValue && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-300 border-t-red-600"></div>
+                    </div>
+                  )}
                   <input
                     type="text"
                     value={searchInputValue}
@@ -608,15 +872,16 @@ function formatPriceInput(value) {
                       setPage(1);
                     }}
                     placeholder="Search by address, city..."
-                    className="w-full pl-9 pr-3 py-2.5 border border-gray-300 rounded-lg text-sm"
+                    className="w-full pl-9 pr-10 py-2.5 border border-gray-300 rounded-lg text-sm transition-all duration-200 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 focus:outline-none"
                   />
                 </div>
 
                 <button
                   type="submit"
-                  className="px-5 py-2.5 bg-red-600 text-white rounded-lg text-sm font-medium"
+                  className="px-5 py-2.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={loading}
                 >
-                  Search
+                  {loading ? "Searching..." : "Search"}
                 </button>
               </div>
             </form>
@@ -624,58 +889,58 @@ function formatPriceInput(value) {
             {/* Filters */}
             <div className="flex items-center gap-2">
 
-<div className="relative">
-  <button
-    onClick={() => setShowPricePopup(!showPricePopup)}
-    className="toolbar-select flex items-center gap-2"
-  >
-    {formatPriceLabel(priceRange[0])} – {formatPriceLabel(priceRange[1])}
-    <ChevronDown className="w-4 h-4" />
-  </button>
+              <div className="relative">
+                <button
+                  onClick={() => setShowPricePopup(!showPricePopup)}
+                  className="toolbar-select flex items-center gap-2"
+                >
+                  {formatPriceLabel(priceRange[0])} – {formatPriceLabel(priceRange[1])}
+                  <ChevronDown className="w-4 h-4" />
+                </button>
 
-  {showPricePopup && (
-    <div className="absolute top-12 left-0 bg-white shadow-xl border rounded-xl p-4 w-[340px] z-50">
+                {showPricePopup && (
+                  <div className="absolute top-12 left-0 bg-white shadow-xl border rounded-xl p-4 w-[340px] z-50">
 
-      {/* MIN MAX INPUTS */}
-      <div className="flex items-center gap-3 mb-4">
+                    {/* MIN MAX INPUTS */}
+                    <div className="flex items-center gap-3 mb-4">
 
-        <input
-  type="text"
-  value={formatPriceInput(priceRange[0])}
-  onChange={(e) => {
-    const value = Number(e.target.value.replace(/[^0-9]/g, ""));
-    setPriceRange([value, priceRange[1]]);
-  }}
-  className="w-full border rounded-lg px-3 py-2 text-sm"
-/>
+                      <input
+                        type="text"
+                        value={formatPriceInput(priceRange[0])}
+                        onChange={(e) => {
+                          const value = Number(e.target.value.replace(/[^0-9]/g, ""));
+                          setPriceRange([value, priceRange[1]]);
+                        }}
+                        className="w-full border rounded-lg px-3 py-2 text-sm"
+                      />
 
-        <span className="text-gray-400 text-sm">to</span>
+                      <span className="text-gray-400 text-sm">to</span>
 
-        <input
-  type="text"
-  value={formatPriceInput(priceRange[1])}
-  onChange={(e) => {
-    const value = Number(e.target.value.replace(/[^0-9]/g, ""));
-    setPriceRange([priceRange[0], value]);
-  }}
-  className="w-full border rounded-lg px-3 py-2 text-sm"
-/>
+                      <input
+                        type="text"
+                        value={formatPriceInput(priceRange[1])}
+                        onChange={(e) => {
+                          const value = Number(e.target.value.replace(/[^0-9]/g, ""));
+                          setPriceRange([priceRange[0], value]);
+                        }}
+                        className="w-full border rounded-lg px-3 py-2 text-sm"
+                      />
 
-      </div>
+                    </div>
 
-      {/* SLIDER */}
-      <Slider
-        range
-        min={0}
-        max={10000000}
-        step={50000}
-        value={priceRange}
-        onChange={(value) => setPriceRange(value)}
-      />
+                    {/* SLIDER */}
+                    <Slider
+                      range
+                      min={0}
+                      max={10000000}
+                      step={50000}
+                      value={priceRange}
+                      onChange={(value) => setPriceRange(value)}
+                    />
 
-    </div>
-  )}
-</div>
+                  </div>
+                )}
+              </div>
 
               <select
                 className="toolbar-select"
@@ -762,11 +1027,11 @@ function formatPriceInput(value) {
               </button>
 
               <button
-onClick={() => setShowMobileFilters(true)}
-className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm"
->
-Filters
-</button>
+                onClick={() => setShowMobileFilters(true)}
+                className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm"
+              >
+                Filters
+              </button>
 
               {/* View toggle - List and Map only (no Split on mobile) */}
               <div className="flex border border-gray-300 rounded-lg p-1 ml-auto">
@@ -790,6 +1055,11 @@ Filters
               <div className="flex gap-2">
                 <div className="flex-1 relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  {loading && searchInputValue && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-300 border-t-red-600"></div>
+                    </div>
+                  )}
                   <input
                     type="text"
                     value={searchInputValue}
@@ -798,37 +1068,44 @@ Filters
                       setPage(1);
                     }}
                     placeholder="Search..."
-                    className="w-full pl-9 pr-3 py-2.5 border border-gray-300 rounded-lg text-sm"
+                    className="w-full pl-9 pr-10 py-2.5 border border-gray-300 rounded-lg text-sm transition-all duration-200 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 focus:outline-none"
                   />
                 </div>
 
                 <button
                   type="submit"
-                  className="px-4 py-2.5 bg-red-600 text-white rounded-lg text-sm"
+                  className="px-4 py-2.5 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={loading}
                 >
-                  Go
+                  {loading ? "..." : "Go"}
                 </button>
               </div>
             </form>
 
-            
+
           </div>
         </div>
       </div>
 
       {/* MAIN CONTENT */}
-     <div 
-  className="max-w-[1600px] mx-auto bg-white flex flex-col"
-style={{ 
-  height: isMounted && typeof window !== 'undefined' && window.innerWidth < 768 
-    ? 'calc(100vh - 180px)' // Mobile: account for header + filters
-    : 'calc(100vh - 100px)', // Desktop (default for SSR)
-  overflow: 'hidden' 
-}}>
+      <div
+        className="max-w-[1600px] mx-auto bg-white flex flex-col"
+        style={{
+          height: isMounted && typeof window !== 'undefined' && window.innerWidth < 768
+            ? 'calc(100vh - 180px)' // Mobile: account for header + filters
+            : 'calc(100vh - 100px)', // Desktop (default for SSR)
+          overflow: 'hidden'
+        }}>
         {/* Title only – no property count, no "Showing X of Y" text */}
         <div className="px-6 py-4 flex-shrink-0">
           <h1 className="text-2xl font-bold text-[#091D35]">
-            {listingType === "rent" ? "Rental Listings" : "Real Estate & Homes for Sale"}
+            {listingType === "rent" 
+              ? "Rental Listings" 
+              : listingType === "new-development"
+              ? "New Development Properties"
+              : listingType === "sell"
+              ? "Sold Properties"
+              : "Real Estate & Homes for Sale"}
           </h1>
         </div>
 
@@ -839,7 +1116,10 @@ style={{
             <div className="w-1/2 flex flex-col" style={{ height: '100%', overflow: 'hidden', position: 'relative' }}>
               <div className="flex-1 overflow-y-scroll px-6 py-4 property-sidebar-scroll" style={{ minHeight: 0, maxHeight: '100%' }}>
                 {loading && page === 1 ? (
-                  <div className="text-center py-12">Loading properties...</div>
+                  <div className="text-center py-12">
+                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-gray-300 border-t-red-600 mb-3"></div>
+                    <p className="text-gray-600">Loading properties...</p>
+                  </div>
                 ) : error ? (
                   <div className="text-center py-12 text-red-600">{error}</div>
                 ) : displayedListings.length === 0 ? (
@@ -857,12 +1137,19 @@ style={{
                     )}
                     <div className="grid grid-cols-2 gap-4">
                       {displayedListings.map((listing, index) => (
-                        <PropertyCard
+                        <div
                           key={listing.ListingId || listing.Id}
-                          listing={listing}
-                          listingType={listingType}
-                          priority={index < 2}
-                        />
+                          className="animate-fadeIn"
+                          style={{
+                            animation: `fadeIn 0.3s ease-in-out ${index * 0.05}s both`
+                          }}
+                        >
+                          <PropertyCard
+                            listing={listing}
+                            listingType={listingType}
+                            priority={index < 2}
+                          />
+                        </div>
                       ))}
                     </div>
                     {/* Pagination at bottom of sidebar - always show when there are multiple pages */}
@@ -928,7 +1215,10 @@ style={{
         {viewMode === "list" && (
           <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
             {loading && page === 1 ? (
-              <div className="text-center py-12">Loading properties...</div>
+              <div className="text-center py-12">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-gray-300 border-t-red-600 mb-3"></div>
+                <p className="text-gray-600">Loading properties...</p>
+              </div>
             ) : error ? (
               <div className="text-center py-12 text-red-600">{error}</div>
             ) : listings.length === 0 ? (
@@ -936,12 +1226,12 @@ style={{
                 {searchQuery && searchQuery.trim().length > 0 ? (
                   isRelatedResults ? (
                     <div>
-                      <p className="mb-2">No exact matches found for "{searchQuery}".</p>
+                      <p className="mb-2">No exact matches found for &quot;{searchQuery}&quot;.</p>
                       <p className="text-sm">Try a different search term or browse all properties.</p>
                     </div>
                   ) : (
                     <div>
-                      <p className="mb-2">No properties found for "{searchQuery}".</p>
+                      <p className="mb-2">No properties found for &quot;{searchQuery}&quot;.</p>
                       <p className="text-sm">Try adjusting your search or filters.</p>
                     </div>
                   )
@@ -959,8 +1249,16 @@ style={{
                   </div>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {listings.map((listing) => (
-                    <PropertyCard key={listing.ListingId || listing.Id} listing={listing} listingType={listingType} />
+                  {listings.map((listing, index) => (
+                    <div
+                      key={listing.ListingId || listing.Id}
+                      className="animate-fadeIn"
+                      style={{
+                        animation: `fadeIn 0.3s ease-in-out ${index * 0.05}s both`
+                      }}
+                    >
+                      <PropertyCard listing={listing} listingType={listingType} />
+                    </div>
                   ))}
                 </div>
                 {hasPagination && (
@@ -994,11 +1292,11 @@ style={{
         {/* Map Only View - Available on all devices */}
         {viewMode === "map" && (
           <div className="flex-1 min-h-0" style={{ height: '100%', width: '100%', position: 'relative' }}>
-            <div 
-              className="h-full w-full" 
-              style={{ 
-                height: '100%', 
-                width: '100%', 
+            <div
+              className="h-full w-full"
+              style={{
+                height: '100%',
+                width: '100%',
                 minHeight: '400px',
                 position: 'relative',
                 overflow: 'hidden'
@@ -1018,181 +1316,179 @@ style={{
               />
             </div>
           </div>
-               )}
+        )}
       </div>
 
 
-{/* MOBILE FILTER PANEL */}
-{showMobileFilters && (
-  <div className="fixed inset-0 bg-black/40 z-[100] flex items-end md:hidden">
+      {/* MOBILE FILTER PANEL */}
+      {showMobileFilters && (
+        <div className="fixed inset-0 bg-black/40 z-[100] flex items-end md:hidden">
 
-    <div className="bg-white w-full rounded-t-2xl p-5 max-h-[85vh] overflow-y-auto">
+          <div className="bg-white w-full rounded-t-2xl p-5 max-h-[85vh] overflow-y-auto">
 
-      {/* Header */}
-    <div className="flex items-center justify-between border-b pb-3 mb-6">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b pb-3 mb-6">
 
-<h2 className="text-lg font-semibold text-[#091D35]">
-Filters
-</h2>
+              <h2 className="text-lg font-semibold text-[#091D35]">
+                Filters
+              </h2>
 
-<button
-onClick={()=>setShowMobileFilters(false)}
-className="text-gray-500 text-lg"
->
-✕
-</button>
+              <button
+                onClick={() => setShowMobileFilters(false)}
+                className="text-gray-500 text-lg"
+              >
+                ✕
+              </button>
 
-</div>
-      {/* PRICE */}
-      <div className="mb-6">
+            </div>
+            {/* PRICE */}
+            <div className="mb-6">
 
-        <h3 className="text-sm font-semibold mb-3">Price</h3>
+              <h3 className="text-sm font-semibold mb-3">Price</h3>
 
-        <div className="flex gap-2 mb-4">
+              <div className="flex gap-2 mb-4">
 
-          <input
-            type="text"
-            value={formatPriceInput(priceRange[0])}
-            onChange={(e) => {
-              const value = Number(e.target.value.replace(/[^0-9]/g, ""));
-              setPriceRange([value, priceRange[1]]);
-            }}
-            className="w-full border rounded-lg px-3 py-2 text-sm"
-          />
+                <input
+                  type="text"
+                  value={formatPriceInput(priceRange[0])}
+                  onChange={(e) => {
+                    const value = Number(e.target.value.replace(/[^0-9]/g, ""));
+                    setPriceRange([value, priceRange[1]]);
+                  }}
+                  className="w-full border rounded-lg px-3 py-2 text-sm"
+                />
 
-          <span className="text-gray-400 self-center">to</span>
+                <span className="text-gray-400 self-center">to</span>
 
-          <input
-            type="text"
-            value={formatPriceInput(priceRange[1])}
-            onChange={(e) => {
-              const value = Number(e.target.value.replace(/[^0-9]/g, ""));
-              setPriceRange([priceRange[0], value]);
-            }}
-            className="w-full border rounded-lg px-3 py-2 text-sm"
-          />
+                <input
+                  type="text"
+                  value={formatPriceInput(priceRange[1])}
+                  onChange={(e) => {
+                    const value = Number(e.target.value.replace(/[^0-9]/g, ""));
+                    setPriceRange([priceRange[0], value]);
+                  }}
+                  className="w-full border rounded-lg px-3 py-2 text-sm"
+                />
 
+              </div>
+
+              <Slider
+                range
+                min={0}
+                max={10000000}
+                step={50000}
+                value={priceRange}
+                onChange={(value) => setPriceRange(value)}
+              />
+
+            </div>
+
+
+            {/* BEDROOMS */}
+            <div className="mb-6">
+
+              <h3 className="text-sm font-semibold mb-3">Bedrooms</h3>
+
+              <div className="flex gap-2 flex-wrap">
+
+                {["", "1", "2", "3", "4", "5"].map((bed) => (
+
+                  <button
+                    key={bed}
+                    onClick={() => {
+                      setFilters((prev) => ({ ...prev, minBeds: bed }));
+                    }}
+                    className={`px-3 py-2 rounded-lg border text-sm font-medium transition
+${filters.minBeds === bed
+                        ? "bg-[#091D35] text-white border-[#091D35]"
+                        : "bg-white border-gray-300 hover:border-red-500"
+                      }`}
+                  >
+
+                    {bed === "" ? "Any" : `${bed}+`}
+
+                  </button>
+
+                ))}
+
+              </div>
+
+            </div>
+
+
+            {/* BATHROOMS */}
+            <div className="mb-6">
+
+              <h3 className="text-sm font-semibold mb-3">Bathrooms</h3>
+
+              <div className="flex gap-2 flex-wrap">
+
+                {["", "1", "2", "3", "4", "5"].map((bath) => (
+
+                  <button
+                    key={bath}
+                    onClick={() => {
+                      setFilters((prev) => ({ ...prev, minBaths: bath }));
+                    }}
+                    className={`px-3 py-2 rounded-lg border text-sm font-medium transition
+${filters.minBaths === bath
+                        ? "bg-[#091D35] text-white border-[#091D35]"
+                        : "bg-white border-gray-300 hover:border-red-500"
+                      }`}
+                  >
+
+                    {bath === "" ? "Any" : `${bath}+`}
+
+                  </button>
+
+                ))}
+
+              </div>
+
+            </div>
+
+
+            {/* Footer */}
+           <div className="bg-white border-t pt-4 mt-6">
+
+              <div className="flex gap-3">
+
+                <button
+                  onClick={() => {
+                    setFilters({
+                      minPrice: "",
+                      maxPrice: "",
+                      minBeds: "",
+                      minBaths: "",
+                      propertyType: ""
+                    })
+                    setPriceRange([0, 2000000])
+                    setPage(1)
+                  }}
+                  className="flex-1 border border-gray-300 rounded-lg py-3 text-sm font-medium hover:border-red-500"
+                >
+                  Reset
+                </button>
+
+                <button
+                  onClick={() => {
+                    setShowMobileFilters(false)
+                    setPage(1)
+                  }}
+                  className="flex-1 bg-red-600 text-white rounded-lg py-3 text-sm font-semibold hover:bg-red-700"
+                >
+                  See Properties
+                </button>
+
+              </div>
+
+            </div>
+
+          </div>
         </div>
-
-        <Slider
-          range
-          min={0}
-          max={10000000}
-          step={50000}
-          value={priceRange}
-          onChange={(value) => setPriceRange(value)}
-        />
-
-      </div>
+      )}
 
 
-      {/* BEDROOMS */}
-      <div className="mb-6">
-
-        <h3 className="text-sm font-semibold mb-3">Bedrooms</h3>
-
-        <div className="flex gap-2 flex-wrap">
-
-          {["", "1", "2", "3", "4", "5"].map((bed) => (
-
-            <button
-              key={bed}
-              onClick={() => {
-                setFilters((prev) => ({ ...prev, minBeds: bed }));
-              }}
-            className={`px-3 py-2 rounded-lg border text-sm font-medium transition
-${
-filters.minBeds === bed
-? "bg-[#091D35] text-white border-[#091D35]"
-: "bg-white border-gray-300 hover:border-red-500"
-}`}
-            >
-
-              {bed === "" ? "Any" : `${bed}+`}
-
-            </button>
-
-          ))}
-
-        </div>
-
-      </div>
-
-
-      {/* BATHROOMS */}
-      <div className="mb-6">
-
-        <h3 className="text-sm font-semibold mb-3">Bathrooms</h3>
-
-        <div className="flex gap-2 flex-wrap">
-
-          {["", "1", "2", "3", "4", "5"].map((bath) => (
-
-            <button
-              key={bath}
-              onClick={() => {
-                setFilters((prev) => ({ ...prev, minBaths: bath }));
-              }}
-            className={`px-3 py-2 rounded-lg border text-sm font-medium transition
-${
-filters.minBaths === bath
-? "bg-[#091D35] text-white border-[#091D35]"
-: "bg-white border-gray-300 hover:border-red-500"
-}`}
-            >
-
-              {bath === "" ? "Any" : `${bath}+`}
-
-            </button>
-
-          ))}
-
-        </div>
-
-      </div>
-
-
-      {/* Footer */}
-    <div className="sticky bottom-0 bg-white border-t pt-4 mt-6">
-
-<div className="flex gap-3">
-
-<button
-onClick={()=>{
-setFilters({
-minPrice:"",
-maxPrice:"",
-minBeds:"",
-minBaths:"",
-propertyType:""
-})
-setPriceRange([0,2000000])
-setPage(1)
-}}
-className="flex-1 border border-gray-300 rounded-lg py-3 text-sm font-medium hover:border-red-500"
->
-Reset
-</button>
-
-<button
-onClick={()=>{
-setShowMobileFilters(false)
-setPage(1)
-}}
-className="flex-1 bg-red-600 text-white rounded-lg py-3 text-sm font-semibold hover:bg-red-700"
->
-See Properties
-</button>
-
-</div>
-
-</div>
-
-    </div>
-  </div>
-)}
-
-      
     </div>
   );
 }
