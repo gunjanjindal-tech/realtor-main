@@ -1097,7 +1097,7 @@ const [viewMode, setViewMode] = useState(() => {
           overflow: 'hidden'
         }}>
         {/* Title only – no property count, no "Showing X of Y" text */}
-        <div className="px-6 py-4 flex-shrink-0">
+        <div className="px-6 pt-1 flex-shrink-0">
           <h1 className="text-2xl font-bold text-[#091D35]">
             {listingType === "rent" 
               ? "Rental Listings" 
