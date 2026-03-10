@@ -3,14 +3,14 @@
 import { useEffect, useState, useMemo } from "react";
 import PropertyListingsMap from "@/components/listings/PropertyListingsMap";
 
-export default function NewDevelopmentCityMap({ city, filters = {} }) {
+export default function NewDevelopmentCityMap({ city, filters = {}, searchQuery = "" }) {
   const [allListings, setAllListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     async function fetchAllCityListings() {
-      if (!city) return;
+      if (!city && !searchQuery) return;
 
       setLoading(true);
       setError(null);
@@ -21,6 +21,50 @@ export default function NewDevelopmentCityMap({ city, filters = {} }) {
           limit: "200", // Bridge API max is 200 per request
         });
 
+        const hasSearchQuery = searchQuery && searchQuery.trim().length > 0;
+
+        if (hasSearchQuery) {
+          // Use search API when search query is provided
+          params.append("q", searchQuery.trim());
+          if (filters.minPrice) params.append("minPrice", filters.minPrice);
+          if (filters.maxPrice) params.append("maxPrice", filters.maxPrice);
+          if (filters.minBeds) params.append("minBeds", filters.minBeds);
+          if (filters.minBaths) params.append("minBaths", filters.minBaths);
+
+          // For search, fetch first page only (200 properties) to avoid too many API calls
+          const res = await fetch(`/api/bridge/search?${params}`);
+          
+          if (!res.ok) {
+            setAllListings([]);
+            setLoading(false);
+            return;
+          }
+
+          const data = await res.json();
+          let fetchedListings = data.listings || [];
+
+          // Filter to only show new development properties
+          fetchedListings = fetchedListings.filter(listing => {
+            const yearBuilt = listing.YearBuilt || 0;
+            const currentYear = new Date().getFullYear();
+            const isNewDev = (currentYear - yearBuilt) <= 5;
+            const subType = (listing.PropertySubType || "").toLowerCase();
+            return isNewDev || subType.includes("new") || subType.includes("pre-construction");
+          });
+
+          // REMOVE listings without coordinates
+          fetchedListings = fetchedListings.filter(
+            (l) =>
+              (l.Latitude || l.LatitudeDecimal) &&
+              (l.Longitude || l.LongitudeDecimal)
+          );
+
+          setAllListings(fetchedListings);
+          setLoading(false);
+          return;
+        }
+
+        // Use new-development API when no search query (normal city listing)
         params.append("city", city);
 
         if (filters.minPrice) params.append("minPrice", filters.minPrice);
@@ -96,7 +140,7 @@ export default function NewDevelopmentCityMap({ city, filters = {} }) {
     }
 
     fetchAllCityListings();
-  }, [city, filters.minPrice, filters.maxPrice, filters.minBeds, filters.minBaths]);
+  }, [city, filters.minPrice, filters.maxPrice, filters.minBeds, filters.minBaths, searchQuery]);
 
   if (loading) {
     return (

@@ -41,8 +41,8 @@ export default function NewDevelopmentCityPage() {
   const handleSearchSubmit = (query) => {
     const q = (query || searchQuery || "").trim();
     if (q) {
-      window.location.href = `/search?q=${encodeURIComponent(q)}`;
-      setSearchQuery(""); // Clear search bar after search
+      // Set search query to show results on same page
+      setSearchQuery(q);
     }
   };
 
@@ -74,7 +74,7 @@ export default function NewDevelopmentCityPage() {
                 New Developments in {city}
               </h2>
 
-                <div className="mt-3 h-[3px] w-24 bg-red-600 rounded-full" />
+              <div className="mt-3 h-[3px] w-24 bg-red-600 rounded-full" />
 
               <p className="mt-4 text-sm md:text-base text-gray-700">
                 Verified MLS listings, pre-construction homes, and investment opportunities.
@@ -89,12 +89,12 @@ export default function NewDevelopmentCityPage() {
             />
           </div>
 
-          <FeaturedProperties city={city} filters={filters} />
+          <FeaturedProperties city={city} filters={filters} searchQuery={searchQuery} />
         </div>
       </section>
 
       {/* MAP WITH ALL PROPERTIES */}
-      <NewDevelopmentCityMap city={city} filters={filters} />
+      <NewDevelopmentCityMap city={city} filters={filters} searchQuery={searchQuery} />
 
       <MobileFilters
         open={filtersOpen}

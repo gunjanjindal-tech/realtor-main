@@ -64,15 +64,16 @@ export async function GET(req) {
       // Build search conditions - prioritize exact address matches
       // Strategy: First try exact match, then AND logic (all words must match), then OR logic as fallback
       const escapedQuery = searchTermLower.replace(/'/g, "''");
-      
+
       // Priority 1: Try exact match on UnparsedAddress first (most accurate)
       // This ensures "9 Karen Court, Cambridge NS BON 2R0" finds that exact property
       const exactMatchCondition = `tolower(UnparsedAddress) eq '${escapedQuery}'`;
-      
+
       // Priority 2: Try partial exact match (contains full query in UnparsedAddress)
       const partialExactMatch = `contains(tolower(UnparsedAddress),'${escapedQuery}')`;
-      
-      // Priority 3: AND logic - all words must match (more accurate than OR)
+
+      // Priority 3: Use OR logic for single word or partial searches (more flexible)
+      // Use AND logic only for multiple words (more precise)
       // Each word can match in any field (City, UnparsedAddress, or StreetName)
       const wordConditions = words.map((word) => {
         const escaped = word.replace(/'/g, "''");
@@ -81,11 +82,21 @@ export async function GET(req) {
         // Only search StreetName if it's not null (to avoid errors)
         return `(contains(tolower(City),'${escaped}') or contains(tolower(UnparsedAddress),'${escaped}') or (StreetName ne null and contains(tolower(StreetName),'${escaped}')))`;
       });
-      
-      // Combine: exact match OR partial exact match OR all words matching (AND logic)
-      // This ensures exact addresses are found first, then properties with all search words
-      const searchCondition = `(${exactMatchCondition} or ${partialExactMatch} or (${wordConditions.join(" and ")}))`;
-      
+
+      // For single word: use OR logic (more flexible, finds partial matches anywhere)
+      // For 2 words: use OR logic (any word can match - flexible for partial searches)
+      // For 3+ words: use AND logic (more precise, all words must match)
+      // IMPORTANT: For single word, we want to find it in ANY field, so OR is correct
+      const wordLogic = words.length === 1
+        ? wordConditions[0]  // Single word: just the condition itself (already searches all fields with OR)
+        : words.length === 2
+          ? wordConditions.join(" or ")  // 2 words: OR logic (any word matches - flexible)
+          : wordConditions.join(" and "); // 3+ words: AND logic (all words must match - precise)
+
+      // Combine: exact match OR partial exact match OR word matching (OR/AND based on word count)
+      // This ensures exact addresses are found first, then flexible partial matches
+      const searchCondition = `(${exactMatchCondition} or ${partialExactMatch} or (${wordLogic}))`;
+
       filterParts.push(searchCondition);
     }
   }
@@ -111,10 +122,10 @@ export async function GET(req) {
   }
 
   const filterQuery = filterParts.join(" and ");
-  
+
   // Bridge API has a maximum $top value of 200
   const topLimit = Math.min(limit, 200);
-  
+
   // Try Listings first, fallback to Properties if needed
   let endpoint = `/${DATASET_ID}/Listings?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}`;
 
@@ -124,23 +135,23 @@ export async function GET(req) {
     //   console.log("🔍 [SEARCH] Fetching from endpoint:", endpoint);
     // }
     let data;
-    
+
     try {
       data = await bridgeFetch(endpoint);
     } catch (listingsError) {
       // Check if it's a network error - don't try fallback, just throw
-      const isNetworkError = listingsError.message.includes("network error") || 
-                            listingsError.message.includes("timeout") ||
-                            listingsError.message.includes("fetch failed");
-      
+      const isNetworkError = listingsError.message.includes("network error") ||
+        listingsError.message.includes("timeout") ||
+        listingsError.message.includes("fetch failed");
+
       if (isNetworkError) {
         throw listingsError; // Don't try fallback for network errors
       }
-      
+
       // If Listings fails with 404, try Properties endpoint (expected fallback)
       const is404 = listingsError.message.includes("404") || listingsError.message.includes("Invalid resource");
       const is400 = listingsError.message.includes("400") || listingsError.message.includes("Cannot find property");
-      
+
       if (is404 || is400) {
         // Suppress expected fallback logging
         // if (process.env.NODE_ENV === "development") {
@@ -157,7 +168,7 @@ export async function GET(req) {
             // if (process.env.NODE_ENV === "development") {
             //   console.log("⚠️ [SEARCH] Properties endpoint failed with field error, trying simplified search...");
             // }
-            
+
             // Try with safe fields only (City and UnparsedAddress)
             // Other fields may not support tolower() in Bridge API
             const simpleWords = query.trim().toLowerCase().split(/\s+/).filter((w) => w.length > 0);
@@ -170,16 +181,16 @@ export async function GET(req) {
               "StandardStatus eq 'Active'",
               ...(simpleWordConditions.length ? [`(${simpleWordConditions.join(" and ")})`] : []),
             ];
-            
+
             // Add other filters (price, beds, baths) if they exist
             if (minPrice) simpleFilterParts.push(`ListPrice ge ${minPrice}`);
             if (maxPrice) simpleFilterParts.push(`ListPrice le ${maxPrice}`);
             if (minBeds) simpleFilterParts.push(`BedroomsTotal ge ${minBeds}`);
             if (minBaths) simpleFilterParts.push(`BathroomsTotalInteger ge ${minBaths}`);
-            
+
             const simpleFilterQuery = simpleFilterParts.join(" and ");
             endpoint = `/${DATASET_ID}/Properties?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(simpleFilterQuery)}`;
-            
+
             try {
               data = await bridgeFetch(endpoint);
             } catch (simpleError) {
@@ -226,6 +237,11 @@ export async function GET(req) {
       BuildingAreaTotal: item.BuildingAreaTotal,
       LivingArea: item.LivingArea,
 
+      // New Development fields - needed to determine correct URL
+      YearBuilt: item.YearBuilt,
+      PropertySubType: item.PropertySubType,
+      PropertyType: item.PropertyType,
+
       // Coordinates for map
       Latitude: item.Latitude || item.LatitudeDecimal,
       Longitude: item.Longitude || item.LongitudeDecimal,
@@ -251,11 +267,11 @@ export async function GET(req) {
         // Strategy 1: Try exact match first, then OR search - any word matches any field (more lenient)
         // Use safe fields (tolower with City, UnparsedAddress, and StreetName)
         const relaxedEscapedQuery = searchTermLower.replace(/'/g, "''");
-        
+
         // Try exact match on UnparsedAddress first
         const relaxedExactMatch = `tolower(UnparsedAddress) eq '${relaxedEscapedQuery}'`;
         const relaxedPartialExact = `contains(tolower(UnparsedAddress),'${relaxedEscapedQuery}')`;
-        
+
         const orConditions = words.map((word) => {
           const escaped = word.replace(/'/g, "''");
           // Use tolower() - safe and works with Bridge API
@@ -263,11 +279,17 @@ export async function GET(req) {
           // Handle null StreetName by using OR with null check
           return `(contains(tolower(City),'${escaped}') or contains(tolower(UnparsedAddress),'${escaped}') or (StreetName ne null and contains(tolower(StreetName),'${escaped}')))`;
         });
-        
+
+        // For single word, use the condition directly (already searches all fields with OR)
+        // For multiple words, use OR logic (any word can match)
+        const relaxedWordLogic = words.length === 1
+          ? orConditions[0]  // Single word: condition itself (already searches all fields)
+          : orConditions.join(" or ");  // Multiple words: OR logic (any word matches)
+
         const relaxedFilterParts = [
           "PropertyType eq 'Residential'",
           "StandardStatus eq 'Active'",
-          `(${relaxedExactMatch} or ${relaxedPartialExact} or (${orConditions.join(" or ")}))` // Exact match OR partial OR any word matching
+          `(${relaxedExactMatch} or ${relaxedPartialExact} or (${relaxedWordLogic}))` // Exact match OR partial OR word matching
         ];
 
         // Add other filters if they exist
@@ -285,18 +307,18 @@ export async function GET(req) {
             relaxedData = await bridgeFetch(relaxedEndpoint);
           } catch (listingsError) {
             // Check if it's a network error - don't try fallback
-            const isNetworkError = listingsError.message.includes("network error") || 
-                                  listingsError.message.includes("timeout") ||
-                                  listingsError.message.includes("fetch failed");
-            
+            const isNetworkError = listingsError.message.includes("network error") ||
+              listingsError.message.includes("timeout") ||
+              listingsError.message.includes("fetch failed");
+
             if (isNetworkError) {
               throw listingsError; // Don't try fallback for network errors
             }
-            
+
             // Try Properties endpoint if Listings fails (only for 404/400)
             const is404 = listingsError.message.includes("404") || listingsError.message.includes("Invalid resource");
             const is400 = listingsError.message.includes("400") || listingsError.message.includes("Cannot find property");
-            
+
             if (is404 || is400) {
               relaxedEndpoint = `/${DATASET_ID}/Properties?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(relaxedFilterQuery)}`;
               relaxedData = await bridgeFetch(relaxedEndpoint);
@@ -304,7 +326,7 @@ export async function GET(req) {
               throw listingsError;
             }
           }
-          
+
           const relaxedListings = (relaxedData.value || relaxedData.bundle || []).map((item) => ({
             ListingId: item.ListingId,
             Id: item.Id,
@@ -317,6 +339,9 @@ export async function GET(req) {
             BathroomsTotalInteger: item.BathroomsTotalInteger,
             BuildingAreaTotal: item.BuildingAreaTotal,
             LivingArea: item.LivingArea,
+            YearBuilt: item.YearBuilt,
+            PropertySubType: item.PropertySubType,
+            PropertyType: item.PropertyType,
             Latitude: item.Latitude || item.LatitudeDecimal,
             Longitude: item.Longitude || item.LongitudeDecimal,
             Image:
@@ -347,7 +372,7 @@ export async function GET(req) {
           try {
             const firstWord = words[0];
             const escaped = firstWord.replace(/'/g, "''");
-            
+
             const partialFilterParts = [
               "PropertyType eq 'Residential'",
               "StandardStatus eq 'Active'",
@@ -368,18 +393,18 @@ export async function GET(req) {
               partialData = await bridgeFetch(partialEndpoint);
             } catch (listingsError) {
               // Check if it's a network error - don't try fallback
-              const isNetworkError = listingsError.message.includes("network error") || 
-                                    listingsError.message.includes("timeout") ||
-                                    listingsError.message.includes("fetch failed");
-              
+              const isNetworkError = listingsError.message.includes("network error") ||
+                listingsError.message.includes("timeout") ||
+                listingsError.message.includes("fetch failed");
+
               if (isNetworkError) {
                 throw listingsError; // Don't try fallback for network errors
               }
-              
+
               // Try Properties endpoint if Listings fails (only for 404/400)
               const is404 = listingsError.message.includes("404") || listingsError.message.includes("Invalid resource");
               const is400 = listingsError.message.includes("400") || listingsError.message.includes("Cannot find property");
-              
+
               if (is404 || is400) {
                 partialEndpoint = `/${DATASET_ID}/Properties?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(partialFilterQuery)}`;
                 partialData = await bridgeFetch(partialEndpoint);
@@ -400,6 +425,9 @@ export async function GET(req) {
               BathroomsTotalInteger: item.BathroomsTotalInteger,
               BuildingAreaTotal: item.BuildingAreaTotal,
               LivingArea: item.LivingArea,
+              YearBuilt: item.YearBuilt,
+              PropertySubType: item.PropertySubType,
+              PropertyType: item.PropertyType,
               Latitude: item.Latitude || item.LatitudeDecimal,
               Longitude: item.Longitude || item.LongitudeDecimal,
               Image:
@@ -450,7 +478,7 @@ export async function GET(req) {
     const is404 = errorMessage.includes("404") || errorMessage.includes("Invalid resource");
     const isAuthError = errorMessage.includes("401") || errorMessage.includes("403");
     const isNetworkError = errorMessage.includes("network error") || errorMessage.includes("timeout") || errorMessage.includes("fetch failed");
-    
+
     if (process.env.NODE_ENV === "development") {
       console.error("❌ Search API Route Error:", {
         message: errorMessage,
@@ -460,19 +488,19 @@ export async function GET(req) {
         datasetId: DATASET_ID,
       });
     }
-    
+
     // Always return JSON, even on error
     // Use 503 for network errors (service unavailable)
     return Response.json(
-      { 
-        error: isNetworkError 
+      {
+        error: isNetworkError
           ? "Bridge API is temporarily unavailable. Please try again later."
           : errorMessage,
         listings: [],
         total: 0,
         query: query.trim(),
-      }, 
-      { 
+      },
+      {
         status: is404 ? 404 : isAuthError ? 401 : (isNetworkError ? 503 : 500),
         headers: {
           "Content-Type": "application/json",

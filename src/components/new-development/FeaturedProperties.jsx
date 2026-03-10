@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import PropertyCard from "../buy/PropertyCard";
 
-export default function FeaturedProperties({ city }) {
+export default function FeaturedProperties({ city, filters = {}, searchQuery = "" }) {
   const topRef = useRef(null);
 
   const [page, setPage] = useState(1);
@@ -16,11 +16,52 @@ export default function FeaturedProperties({ city }) {
   useEffect(() => {
     async function fetchListings() {
       try {
-        const res = await fetch(
-          `/api/bridge/new-development?page=${page}&limit=${limit}${
-            city ? `&city=${city}` : ""
-          }`
-        );
+        const params = new URLSearchParams({
+          page: page.toString(),
+          limit: limit.toString(),
+        });
+
+        const hasSearchQuery = searchQuery && searchQuery.trim().length > 0;
+
+        if (hasSearchQuery) {
+          // Use search API when search query is provided
+          params.append("q", searchQuery.trim());
+          if (filters.minPrice && filters.minPrice !== "") params.append("minPrice", filters.minPrice);
+          if (filters.maxPrice && filters.maxPrice !== "") params.append("maxPrice", filters.maxPrice);
+          if (filters.minBeds && filters.minBeds !== "") params.append("minBeds", filters.minBeds);
+          if (filters.minBaths && filters.minBaths !== "") params.append("minBaths", filters.minBaths);
+
+          const res = await fetch(`/api/bridge/search?${params}`);
+          
+          if (!res.ok) {
+            setListings([]);
+            setTotal(0);
+            return;
+          }
+
+          const data = await res.json();
+          // Filter to only show new development properties
+          const newDevListings = (data.listings || []).filter(listing => {
+            const yearBuilt = listing.YearBuilt || 0;
+            const currentYear = new Date().getFullYear();
+            const isNewDev = (currentYear - yearBuilt) <= 5;
+            const subType = (listing.PropertySubType || "").toLowerCase();
+            return isNewDev || subType.includes("new") || subType.includes("pre-construction");
+          });
+          
+          setListings(newDevListings);
+          setTotal(newDevListings.length);
+          return;
+        }
+
+        // Use new-development API when no search query (normal city listing)
+        if (city) params.append("city", city);
+        if (filters.minPrice && filters.minPrice !== "") params.append("minPrice", filters.minPrice);
+        if (filters.maxPrice && filters.maxPrice !== "") params.append("maxPrice", filters.maxPrice);
+        if (filters.minBeds && filters.minBeds !== "") params.append("minBeds", filters.minBeds);
+        if (filters.minBaths && filters.minBaths !== "") params.append("minBaths", filters.minBaths);
+
+        const res = await fetch(`/api/bridge/new-development?${params}`);
 
         if (!res.ok) {
           setListings([]);
@@ -38,7 +79,7 @@ export default function FeaturedProperties({ city }) {
     }
 
     fetchListings();
-  }, [page, city]);
+  }, [page, city, filters.minPrice, filters.maxPrice, filters.minBeds, filters.minBaths, searchQuery]);
 
   const totalPages = Math.ceil(total / limit);
 
@@ -80,7 +121,9 @@ export default function FeaturedProperties({ city }) {
         {/* GRID - show listings as they load; no full-screen loading on pagination (like Buy) */}
         {listings.length === 0 ? (
           <div className="text-center py-20 text-gray-500">
-            New Development Properties Loading...
+            {searchQuery && searchQuery.trim().length > 0
+              ? `No new development properties found for "${searchQuery}". Try adjusting your search.`
+              : "New Development Properties Loading..."}
           </div>
         ) : (
           <>

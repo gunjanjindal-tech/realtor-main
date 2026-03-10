@@ -13,7 +13,7 @@ const MapClient = dynamic(
   }
 );
 
-export default function PropertyListingsMap({ listings = [], onBoundsChange, searchQuery, hasSearchResults = false, onMapClick }) {
+export default function PropertyListingsMap({ listings = [], onBoundsChange, searchQuery, hasSearchResults = false, onMapClick, onZoomChange, listingType = "sale" }) {
   // Filter listings with valid coordinates from Bridge API - optimized
   const validListings = useMemo(() => {
     if (listings.length === 0) return [];
@@ -122,6 +122,8 @@ export default function PropertyListingsMap({ listings = [], onBoundsChange, sea
           searchQuery={searchQuery}
           hasSearchResults={hasSearchResults}
           onMapClick={onMapClick}
+          onZoomChange={onZoomChange}
+          listingType={listingType}
         />
       )}
     </div>

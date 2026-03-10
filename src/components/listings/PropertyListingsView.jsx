@@ -4,9 +4,8 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import PropertyCard from "@/components/buy/PropertyCard";
 import PropertyListingsMap from "./PropertyListingsMap";
-import { Search, Filter, Map, List as ListIcon, LayoutGrid } from "lucide-react";
+import { Search, Filter, Map, List as ListIcon, LayoutGrid, ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { ChevronDown } from "lucide-react";
 import Header from "@/components/Header";
 import Slider from "rc-slider";
 import "rc-slider/assets/index.css";
@@ -40,15 +39,15 @@ export default function PropertyListingsView() {
   // Separate state for map - fetch ALL properties for map display
   const [allMapListings, setAllMapListings] = useState([]);
   const [mapLoading, setMapLoading] = useState(true);
+  // Track map zoom level for dynamic loading
+  const [mapZoomLevel, setMapZoomLevel] = useState(12);
+  // Track how many pages we've fetched
+  const [fetchedPages, setFetchedPages] = useState(1); // Start with 1 page (200 properties)
   // Nearby fallback listings (when search returns 0 results): show properties near searched location
   const [nearbyListings, setNearbyListings] = useState([]);
   // Default view: "split" for server render (consistent), will be updated on client
-const [viewMode, setViewMode] = useState(() => {
-  if (typeof window !== "undefined") {
-    return window.innerWidth < 768 ? "list" : "split";
-  }
-  return "split";
-});
+  // Always use "split" for SSR to avoid hydration mismatch
+  const [viewMode, setViewMode] = useState("split");
   const [isMounted, setIsMounted] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchInputValue, setSearchInputValue] = useState(""); // Separate state for input display
@@ -79,12 +78,19 @@ const [viewMode, setViewMode] = useState(() => {
 
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
-  // Clear search on mount - don't read from URL
+  // Read search query from URL on mount if present
   useEffect(() => {
-    // Always clear search on page load/refresh
-    setSearchQuery("");
-    setSearchInputValue("");
-  }, []);
+    const urlQuery = searchParams?.get("q") || searchParams?.get("query") || "";
+    if (urlQuery && urlQuery.trim().length > 0) {
+      // If search query is in URL, use it (e.g., when redirected from specific pages)
+      setSearchQuery(urlQuery.trim());
+      setSearchInputValue(urlQuery.trim());
+    } else {
+      // Otherwise clear search
+      setSearchQuery("");
+      setSearchInputValue("");
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const currentFetchId = ++fetchIdRef.current;
@@ -96,7 +102,7 @@ const [viewMode, setViewMode] = useState(() => {
       try {
         // For search, use smaller limit for faster initial load, then load more if needed
         const searchLimit = (searchQuery && searchQuery.trim().length > 0) ? 50 : limit;
-        
+
         const params = new URLSearchParams({
           page: page.toString(),
           limit: searchLimit.toString(),
@@ -229,9 +235,9 @@ const [viewMode, setViewMode] = useState(() => {
 
       try {
         const params = new URLSearchParams();
-        // For search, use same limit as list view (50) for faster initial load and synchronization
-        // For non-search, use 200 to get more properties for map
-        const mapLimit = (searchQuery && searchQuery.trim().length > 0) ? 50 : 200;
+        // Always use 200 properties per page for map (consistent pagination)
+        // This ensures 200 properties load at once, then more on zoom in
+        const mapLimit = 200;
         params.append("limit", mapLimit.toString());
         params.append("page", "1");
 
@@ -286,18 +292,34 @@ const [viewMode, setViewMode] = useState(() => {
             errorPreview: isHTML ? "HTML error page" : errorText.substring(0, 200)
           });
 
+          // Handle 503 (Service Unavailable) - Bridge API timeout or unavailable
+          if (response.status === 503) {
+            console.warn("⚠️ Bridge API temporarily unavailable (503). Keeping existing listings or using empty state.");
+            // Don't throw - keep existing listings as fallback, or set empty if none exist
+            if (allMapListings.length === 0) {
+              setAllMapListings([]);
+            }
+            setMapLoading(false);
+            return;
+          }
+
           // For 404, return empty results instead of throwing
           if (response.status === 404) {
             console.warn("⚠️ API route not found (404). This may indicate the route is not available yet or the URL is incorrect.");
             if (allMapListings.length === 0) {
               setAllMapListings([]);
             }
+            setMapLoading(false);
             return;
           }
 
-          throw new Error(isHTML
-            ? `API route not found (${response.status}). The server returned an HTML error page.`
-            : `HTTP error! status: ${response.status}`);
+          // For other errors, still handle gracefully but log the error
+          console.warn(`⚠️ HTTP error ${response.status} fetching map listings. Keeping existing listings.`);
+          if (allMapListings.length === 0) {
+            setAllMapListings([]);
+          }
+          setMapLoading(false);
+          return;
         }
 
         // Check content type before parsing JSON
@@ -333,60 +355,30 @@ const [viewMode, setViewMode] = useState(() => {
             });
           }
 
-          // Calculate total pages needed (200 per page)
-          // Fetch ALL pages to show all properties on map (city clusters need all data)
-          const totalPages = Math.ceil(totalProperties / 200);
-
-          // Fetch remaining pages in parallel for faster loading (limited to 5 pages)
-          if (totalPages > 1) {
-            const pagePromises = [];
-
-            // Create promises for all remaining pages (2, 3, 4, ... up to totalPages)
-            for (let page = 2; page <= totalPages; page++) {
-              const pageParams = new URLSearchParams(params);
-              pageParams.set("page", page.toString());
-
-              pagePromises.push(
-                fetch(`${apiUrl}?${pageParams}`)
-                  .then(async res => {
-                    if (!res.ok) {
-                      const text = await res.text().catch(() => "");
-                      const isHTML = text.trim().startsWith("<!DOCTYPE") || text.trim().startsWith("<html");
-                      if (process.env.NODE_ENV === "development") {
-                        console.warn(`Failed to fetch page ${page} for map: ${res.status}`, isHTML ? "HTML error page" : text.substring(0, 100));
-                      }
-                      return null;
-                    }
-                    const contentType = res.headers.get("content-type");
-                    if (!contentType || !contentType.includes("application/json")) {
-                      if (process.env.NODE_ENV === "development") {
-                        console.warn(`Page ${page} returned non-JSON: ${contentType}`);
-                      }
-                      return null;
-                    }
-                    return res.json();
-                  })
-                  .then(pageData => pageData?.listings || [])
-                  .catch(err => {
-                    if (process.env.NODE_ENV === "development") {
-                      console.warn(`Failed to fetch page ${page} for map:`, err.message);
-                    }
-                    return [];
-                  })
-              );
+          // When SEARCHING: Only use first 200 properties to focus on searched location
+          // When NOT searching: Can fetch more pages on zoom in
+          if (searchQuery && searchQuery.trim().length > 0) {
+            // Limit to exactly 200 properties when searching - this ensures map focuses on search location
+            fetchedListings = fetchedListings.slice(0, 200);
+            setFetchedPages(1); // Only 1 page when searching
+            
+            if (process.env.NODE_ENV === "development") {
+              console.log("✅ Search: Limited to 200 properties for map focus:", {
+                totalFetched: fetchedListings.length,
+                totalAvailable: totalProperties
+              });
             }
-
-            // Wait for all pages to fetch in parallel
-            const additionalListingsArrays = await Promise.all(pagePromises);
-
-            // Flatten all results into single array
-            const additionalListings = additionalListingsArrays.flat();
-            fetchedListings = [...fetchedListings, ...additionalListings];
+          } else {
+            // Not searching: fetch first page, more on zoom in
+            const totalPages = Math.ceil(totalProperties / 200);
+            const MAX_INITIAL_PAGES = 1;
+            setFetchedPages(MAX_INITIAL_PAGES);
 
             if (process.env.NODE_ENV === "development") {
-              console.log("✅ Map listings all pages fetched:", {
+              console.log("✅ Map listings initial page fetched:", {
                 totalFetched: fetchedListings.length,
-                pagesFetched: totalPages,
+                pagesFetched: MAX_INITIAL_PAGES,
+                totalPages: totalPages
               });
             }
           }
@@ -409,35 +401,15 @@ const [viewMode, setViewMode] = useState(() => {
                   throw new Error(`Sell API returned non-JSON: ${contentType || "unknown"}`);
                 }
                 const sellData = await sellResponse.json();
+                // Pagination: Only fetch first page (200 properties) to prevent too many API calls
                 let sellListings = sellData.listings || [];
-                const sellTotal = sellData.total || 0;
 
-                // Fetch ALL remaining pages for sold properties
-                if (sellTotal > 200) {
-                  const sellTotalPages = Math.ceil(sellTotal / 200);
-                  const sellPagePromises = [];
-
-                  for (let p = 2; p <= sellTotalPages; p++) {
-                    const pageParams = new URLSearchParams(sellParams);
-                    pageParams.set("page", p.toString());
-
-                    sellPagePromises.push(
-                      fetch(`/api/bridge/sell?${pageParams}`)
-                        .then(async res => {
-                          if (!res.ok) return null;
-                          const contentType = res.headers.get("content-type");
-                          if (!contentType || !contentType.includes("application/json")) {
-                            return null;
-                          }
-                          return res.json();
-                        })
-                        .then(pageData => pageData?.listings || [])
-                        .catch(() => [])
-                    );
+                // Don't fetch all pages - only first page is enough for map performance
+                if (process.env.NODE_ENV === "development") {
+                  const sellTotal = sellData.total || 0;
+                  if (sellTotal > 200) {
+                    console.log("ℹ️ Sold properties: Only fetching first page (200) for map performance");
                   }
-
-                  const additionalSellListings = await Promise.all(sellPagePromises);
-                  sellListings = [...sellListings, ...additionalSellListings.flat()];
                 }
 
                 // Mark as from sell API
@@ -481,14 +453,24 @@ const [viewMode, setViewMode] = useState(() => {
           } else {
             errorApiUrl = "/api/bridge/buy";
           }
-          
-          console.error("❌ Error fetching all map listings:", {
-            error: err.message,
-            stack: err.stack,
-            apiUrl: errorApiUrl,
-            listingType,
-            hasSearchQuery: !!(searchQuery && searchQuery.trim().length > 0)
-          });
+
+          // Handle network errors and timeouts gracefully
+          const isNetworkError = err.message.includes("network") ||
+            err.message.includes("timeout") ||
+            err.message.includes("503") ||
+            err.message.includes("Service Unavailable");
+
+          if (isNetworkError) {
+            console.warn("⚠️ Network error or timeout fetching map listings. Keeping existing listings or using empty state.");
+          } else {
+            console.error("❌ Error fetching all map listings:", {
+              error: err.message,
+              stack: err.stack,
+              apiUrl: errorApiUrl,
+              listingType,
+              hasSearchQuery: !!(searchQuery && searchQuery.trim().length > 0)
+            });
+          }
           // Don't clear existing listings on error - keep them as fallback
           if (allMapListings.length === 0) {
             setAllMapListings([]);
@@ -504,6 +486,150 @@ const [viewMode, setViewMode] = useState(() => {
     fetchAllMapListings();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listingType, searchQuery, filters.minPrice, filters.maxPrice, filters.minBeds, filters.minBaths]);
+
+  // Dynamic loading: Fetch more properties when user zooms in
+  useEffect(() => {
+    // Don't fetch more if searching (search results are already limited)
+    if (searchQuery && searchQuery.trim().length > 0) {
+      return;
+    }
+
+    // Don't fetch if already loading
+    if (mapLoading) {
+      return;
+    }
+
+    // Determine how many pages to fetch based on zoom level
+    // Each page = 200 properties
+    // Zoom < 10: 1 page (200 properties) - zoomed out
+    // Zoom 10-12: 3 pages (600 properties) - moderate zoom
+    // Zoom 13-15: 5 pages (1000 properties) - zoomed in
+    // Zoom > 15: 10 pages (2000 properties) - very zoomed in
+    let targetPages;
+    if (mapZoomLevel < 10) {
+      targetPages = 1; // Zoomed out - 200 properties
+    } else if (mapZoomLevel <= 12) {
+      targetPages = 3; // Moderate zoom - 600 properties
+    } else if (mapZoomLevel <= 15) {
+      targetPages = 5; // Zoomed in - 1000 properties
+    } else {
+      targetPages = 10; // Very zoomed in - 2000 properties
+    }
+
+    // Only fetch if we need more pages
+    if (targetPages <= fetchedPages) {
+      return;
+    }
+
+    // Debounce: Wait 2000ms after zoom stops changing to prevent map refresh during zoom
+    // Increased delay to ensure zoom animation completes, markers update, and user has stopped zooming
+    const timeoutId = setTimeout(async () => {
+      const currentFetchId = ++mapFetchIdRef.current;
+
+      try {
+        const params = new URLSearchParams();
+        params.append("limit", "200");
+
+        if (filters.minPrice) params.append("minPrice", filters.minPrice);
+        if (filters.maxPrice) params.append("maxPrice", filters.maxPrice);
+        if (filters.minBeds) params.append("minBeds", filters.minBeds);
+        if (filters.minBaths) params.append("minBaths", filters.minBaths);
+
+        // Determine API endpoint
+        let apiUrl;
+        if (listingType === "rent") {
+          apiUrl = "/api/bridge/rent";
+        } else if (listingType === "new-development") {
+          apiUrl = "/api/bridge/new-development";
+        } else if (listingType === "sell") {
+          apiUrl = "/api/bridge/sell";
+        } else {
+          apiUrl = "/api/bridge/buy";
+        }
+
+        // Fetch additional pages (from fetchedPages + 1 to targetPages)
+        const pagesToFetch = [];
+        for (let page = fetchedPages + 1; page <= targetPages; page++) {
+          pagesToFetch.push(page);
+        }
+
+        if (pagesToFetch.length === 0) {
+          return; // No pages to fetch
+        }
+
+        if (process.env.NODE_ENV === "development") {
+          console.log(`📥 [MAP] Fetching additional pages ${pagesToFetch.join(', ')} for zoom level ${mapZoomLevel}`);
+        }
+
+        // Fetch pages in parallel (but limit to 3 at a time to avoid overwhelming)
+        const fetchPromises = pagesToFetch.slice(0, 3).map(async (page) => {
+          const pageParams = new URLSearchParams(params);
+          pageParams.set("page", page.toString());
+
+          try {
+            const response = await fetch(`${apiUrl}?${pageParams}`);
+            if (response.ok) {
+              const contentType = response.headers.get("content-type");
+              if (contentType && contentType.includes("application/json")) {
+                const data = await response.json();
+                return data.listings || [];
+              }
+            }
+            return [];
+          } catch (err) {
+            if (process.env.NODE_ENV === "development") {
+              console.warn(`⚠️ Failed to fetch page ${page}:`, err.message);
+            }
+            return [];
+          }
+        });
+
+        const results = await Promise.all(fetchPromises);
+        const newListings = results.flat();
+
+        if (currentFetchId === mapFetchIdRef.current && newListings.length > 0) {
+          // Use functional update to merge smoothly without causing full refresh
+          setAllMapListings(prev => {
+            // Merge new listings, avoiding duplicates
+            const existingIds = new Set(prev.map(l => l.ListingId || l.Id || l.MlsNumber));
+            const uniqueNew = newListings.filter(l => {
+              const id = l.ListingId || l.Id || l.MlsNumber;
+              return id && !existingIds.has(id);
+            });
+
+            // Only update if we have new listings to prevent unnecessary re-renders
+            if (uniqueNew.length === 0) {
+              return prev; // No change, return same reference
+            }
+
+            return [...prev, ...uniqueNew];
+          });
+          setFetchedPages(targetPages);
+
+          if (process.env.NODE_ENV === "development") {
+            console.log(`✅ [MAP] Loaded ${newListings.length} additional properties. Total pages: ${targetPages}`);
+          }
+        }
+      } catch (err) {
+        // Handle network errors gracefully - don't break the map
+        const isNetworkError = err.message.includes("network") ||
+          err.message.includes("timeout") ||
+          err.message.includes("503");
+
+        if (isNetworkError) {
+          if (process.env.NODE_ENV === "development") {
+            console.warn("⚠️ Network error fetching additional map listings. Will retry on next zoom.");
+          }
+        } else {
+          if (process.env.NODE_ENV === "development") {
+            console.error("❌ Error fetching additional map listings:", err);
+          }
+        }
+      }
+    }, 1000); // 1000ms debounce - wait longer to prevent refresh during zoom
+
+    return () => clearTimeout(timeoutId);
+  }, [mapZoomLevel, fetchedPages, mapLoading, searchQuery, listingType, filters.minPrice, filters.maxPrice, filters.minBeds, filters.minBaths]);
 
   // If search returns 0 results, fetch nearby properties in the current map bounds (after geocode centers the map)
   useEffect(() => {
@@ -637,10 +763,9 @@ const [viewMode, setViewMode] = useState(() => {
   // This runs only on client to avoid hydration mismatch
   useEffect(() => {
     setIsMounted(true);
-    if (typeof window !== "undefined") {
-      const isMobile = window.innerWidth < 768;
-      setViewMode(isMobile ? "list" : "split");
-    }
+    // Only check window size on client (useEffect runs only on client)
+    const isMobile = window.innerWidth < 768;
+    setViewMode(isMobile ? "list" : "split");
   }, []);
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
@@ -655,7 +780,7 @@ const [viewMode, setViewMode] = useState(() => {
         setPage(1);
         // Don't update URL - let it clear on refresh/back
       }
-    }, 200); // 200ms debounce - faster response for smooth UX
+    }, 300); // 300ms debounce - balanced for smooth UX and API calls
 
     return () => clearTimeout(timeoutId);
   }, [searchInputValue, searchQuery]);
@@ -678,11 +803,17 @@ const [viewMode, setViewMode] = useState(() => {
       ? priceRange[1].toString()
       : "";
 
-    setFilters((prev) => ({
-      ...prev,
-      minPrice: minPrice,
-      maxPrice: maxPrice,
-    }));
+    setFilters((prev) => {
+      // Only update if values actually changed to avoid unnecessary re-renders
+      if (prev.minPrice === minPrice && prev.maxPrice === maxPrice) {
+        return prev;
+      }
+      return {
+        ...prev,
+        minPrice: minPrice,
+        maxPrice: maxPrice,
+      };
+    });
   }, [priceRange]);
 
 
@@ -698,33 +829,41 @@ const [viewMode, setViewMode] = useState(() => {
   // Listings with valid coordinates for map - prioritize search results (exact or related), then allMapListings
   const mapListings = useMemo(() => {
     // Source selection:
-    // - If searching and we have search results: use `allMapListings` (has all pages of search results from map fetch)
-    //   OR fallback to `listings` if allMapListings is still loading/empty (for immediate display)
+    // - If searching and we have search results: ALWAYS prioritize `listings` (they have search results immediately)
+    //   Then merge with allMapListings when it loads (to get all pages if available)
     // - If search returned 0: use `nearbyListings` (bounds-based) fallback; else fall back to `allMapListings`
     // - If not searching: use `allMapListings` for full map view
     let sourceListings;
-    
+
     if (hasSearchQuery) {
       if (hasSearchResults) {
-        // When searching and we have results, IMMEDIATELY use listings (they have search results right away)
-        // Then merge with allMapListings when it loads (to get all pages if available)
-        if (allMapListings.length > 0) {
-          // Merge both to get all pages - use allMapListings as base, add any from listings that aren't in allMapListings
-          // Use multiple ID fields to match listings properly
-          const allMapIds = new Set();
-          allMapListings.forEach(l => {
+        // When searching and we have results, ALWAYS use listings FIRST (they have search results immediately)
+        // This ensures search results show on map right away, even if allMapListings is still loading
+        if (listings.length > 0) {
+          // Start with listings (search results)
+          const listingIds = new Set();
+          listings.forEach(l => {
             const id = l.ListingId || l.Id || l.MlsNumber || l.MLSNumber;
-            if (id) allMapIds.add(String(id));
+            if (id) listingIds.add(String(id));
           });
-          
-          const additionalFromListings = listings.filter(l => {
-            const id = l.ListingId || l.Id || l.MlsNumber || l.MLSNumber;
-            return id && !allMapIds.has(String(id));
-          });
-          sourceListings = [...allMapListings, ...additionalFromListings];
+
+          // Then merge with allMapListings if available (to get all pages)
+          if (allMapListings.length > 0) {
+            const additionalFromAllMap = allMapListings.filter(l => {
+              const id = l.ListingId || l.Id || l.MlsNumber || l.MLSNumber;
+              return id && !listingIds.has(String(id));
+            });
+            sourceListings = [...listings, ...additionalFromAllMap];
+          } else {
+            // allMapListings not loaded yet, use listings immediately so markers show right away
+            sourceListings = listings;
+          }
+        } else if (allMapListings.length > 0) {
+          // Fallback: if listings is empty but allMapListings has data, use it
+          sourceListings = allMapListings;
         } else {
-          // allMapListings not loaded yet, use listings immediately so markers show right away
-          sourceListings = listings;
+          // Both empty, use empty array
+          sourceListings = [];
         }
       } else {
         // Search returned 0 results, use nearbyListings fallback
@@ -740,11 +879,11 @@ const [viewMode, setViewMode] = useState(() => {
         // Check multiple possible coordinate field names
         const lat = listing.Latitude || listing.LatitudeDecimal || listing.latitude || listing.lat;
         const lng = listing.Longitude || listing.LongitudeDecimal || listing.longitude || listing.lng || listing.lon;
-        
+
         // Convert to number and validate
         const latNum = lat != null ? parseFloat(lat) : NaN;
         const lngNum = lng != null ? parseFloat(lng) : NaN;
-        
+
         // Check if valid numbers and within valid ranges
         return !isNaN(latNum) && !isNaN(lngNum) &&
           latNum >= -90 && latNum <= 90 &&
@@ -761,16 +900,25 @@ const [viewMode, setViewMode] = useState(() => {
         allMapListingsCount: allMapListings.length,
         sourceListingsCount: sourceListings.length,
         listingsWithCoords: filtered.length,
-        source: hasSearchResults 
-          ? (allMapListings.length > 0 ? "merged (listings + allMapListings)" : "listings (immediate)") 
+        source: hasSearchResults
+          ? (listings.length > 0
+            ? (allMapListings.length > 0 ? "merged (listings + allMapListings)" : "listings (immediate)")
+            : (allMapListings.length > 0 ? "allMapListings (fallback)" : "empty"))
           : (nearbyListings.length > 0 ? "nearbyListings (bounds fallback)" : "allMapListings (fallback)"),
         sampleCoords: filtered.length > 0 ? {
           lat: filtered[0].Latitude || filtered[0].LatitudeDecimal,
           lng: filtered[0].Longitude || filtered[0].LongitudeDecimal
+        } : null,
+        sampleListing: filtered.length > 0 ? {
+          address: filtered[0].Address || filtered[0].FullAddress || filtered[0].StreetAddress,
+          id: filtered[0].ListingId || filtered[0].Id || filtered[0].MlsNumber
         } : null
       });
     }
 
+    // Note: Pagination is now handled in PropertyListingsMapGoogle based on zoom level
+    // We pass all filtered listings here, and the map component will limit based on zoom
+    // This allows zoom in to show all properties, zoom out to show limited (300)
     return filtered;
   }, [allMapListings, listings, hasSearchQuery, hasSearchResults, nearbyListings, searchQuery, isRelatedResults]);
 
@@ -818,8 +966,8 @@ const [viewMode, setViewMode] = useState(() => {
   }
 
   return (
-<div className="bg-[#0B1F3A] min-h-screen"
-     style={{ paddingTop: '22px' }}>      {/* Smooth fade-in animation for property cards */}
+    <div className="bg-[#0B1F3A] min-h-screen pt-[22px]">
+      {/* Smooth fade-in animation for property cards */}
       <style dangerouslySetInnerHTML={{
         __html: `
         @keyframes fadeIn {
@@ -977,6 +1125,7 @@ const [viewMode, setViewMode] = useState(() => {
               <button
                 className="toolbar-clear"
                 onClick={() => {
+                  // Clear all filters
                   setFilters({
                     minPrice: "",
                     maxPrice: "",
@@ -984,6 +1133,12 @@ const [viewMode, setViewMode] = useState(() => {
                     minBaths: "",
                     propertyType: "",
                   });
+                  // Clear price range
+                  setPriceRange([0, 2000000]);
+                  // Clear search query
+                  setSearchInputValue("");
+                  setSearchQuery("");
+                  // Reset to page 1
                   setPage(1);
                 }}
               >
@@ -1091,7 +1246,7 @@ const [viewMode, setViewMode] = useState(() => {
       <div
         className="max-w-[1600px] mx-auto bg-white flex flex-col"
         style={{
-          height: isMounted && typeof window !== 'undefined' && window.innerWidth < 768
+          height: isMounted && window.innerWidth < 768
             ? 'calc(100vh - 180px)' // Mobile: account for header + filters
             : 'calc(100vh - 100px)', // Desktop (default for SSR)
           overflow: 'hidden'
@@ -1099,13 +1254,13 @@ const [viewMode, setViewMode] = useState(() => {
         {/* Title only – no property count, no "Showing X of Y" text */}
         <div className="px-6 pt-1 flex-shrink-0">
           <h1 className="text-2xl font-bold text-[#091D35]">
-            {listingType === "rent" 
-              ? "Rental Listings" 
+            {listingType === "rent"
+              ? "Rental Listings"
               : listingType === "new-development"
-              ? "New Development Properties"
-              : listingType === "sell"
-              ? "Sold Properties"
-              : "Real Estate & Homes for Sale"}
+                ? "New Development Properties"
+                : listingType === "sell"
+                  ? "Sold Properties"
+                  : "Real Estate & Homes for Sale"}
           </h1>
         </div>
 
@@ -1200,11 +1355,15 @@ const [viewMode, setViewMode] = useState(() => {
                 onBoundsChange={setMapBounds}
                 searchQuery={searchQuery}
                 hasSearchResults={hasSearchResults}
+                listingType={listingType}
                 onMapClick={(locationName) => {
                   // Update search when map is clicked
                   setSearchInputValue(locationName);
                   setSearchQuery(locationName);
                   setPage(1);
+                }}
+                onZoomChange={(zoom) => {
+                  setMapZoomLevel(zoom);
                 }}
               />
             </div>
@@ -1307,11 +1466,15 @@ const [viewMode, setViewMode] = useState(() => {
                 onBoundsChange={setMapBounds}
                 searchQuery={searchQuery}
                 hasSearchResults={hasSearchResults}
+                listingType={listingType}
                 onMapClick={(locationName) => {
                   // Update search when map is clicked
                   setSearchInputValue(locationName);
                   setSearchQuery(locationName);
                   setPage(1);
+                }}
+                onZoomChange={(zoom) => {
+                  setMapZoomLevel(zoom);
                 }}
               />
             </div>
@@ -1397,6 +1560,7 @@ const [viewMode, setViewMode] = useState(() => {
                     key={bed}
                     onClick={() => {
                       setFilters((prev) => ({ ...prev, minBeds: bed }));
+                      setPage(1);
                     }}
                     className={`px-3 py-2 rounded-lg border text-sm font-medium transition
 ${filters.minBeds === bed
@@ -1429,6 +1593,7 @@ ${filters.minBeds === bed
                     key={bath}
                     onClick={() => {
                       setFilters((prev) => ({ ...prev, minBaths: bath }));
+                      setPage(1);
                     }}
                     className={`px-3 py-2 rounded-lg border text-sm font-medium transition
 ${filters.minBaths === bath
@@ -1449,21 +1614,27 @@ ${filters.minBaths === bath
 
 
             {/* Footer */}
-           <div className="bg-white border-t pt-4 mt-6">
+            <div className="bg-white border-t pt-4 mt-6">
 
               <div className="flex gap-3">
 
                 <button
                   onClick={() => {
+                    // Clear all filters
                     setFilters({
                       minPrice: "",
                       maxPrice: "",
                       minBeds: "",
                       minBaths: "",
                       propertyType: ""
-                    })
-                    setPriceRange([0, 2000000])
-                    setPage(1)
+                    });
+                    // Clear price range
+                    setPriceRange([0, 2000000]);
+                    // Clear search query
+                    setSearchInputValue("");
+                    setSearchQuery("");
+                    // Reset to page 1
+                    setPage(1);
                   }}
                   className="flex-1 border border-gray-300 rounded-lg py-3 text-sm font-medium hover:border-red-500"
                 >
@@ -1472,8 +1643,8 @@ ${filters.minBaths === bath
 
                 <button
                   onClick={() => {
-                    setShowMobileFilters(false)
-                    setPage(1)
+                    setShowMobileFilters(false);
+                    setPage(1);
                   }}
                   className="flex-1 bg-red-600 text-white rounded-lg py-3 text-sm font-semibold hover:bg-red-700"
                 >

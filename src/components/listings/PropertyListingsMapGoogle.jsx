@@ -74,7 +74,7 @@ const ZOOM_PROPERTY_LEVEL = 20; // zoom >= this: show all individual properties 
 // Geocoding is included since it's enabled on the API key
 const GOOGLE_MAPS_LIBRARIES = ["places", "geometry", "geocoding"];
 
-export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {}, onBoundsChange, searchQuery, hasSearchResults = false, onMapClick }) {
+export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {}, onBoundsChange, searchQuery, hasSearchResults = false, onMapClick, onZoomChange, listingType = "sale" }) {
   const [selectedId, setSelectedId] = useState(null);
   const [zoomLevel, setZoomLevel] = useState(12);
   const [selectedCityKey, setSelectedCityKey] = useState(null);
@@ -116,21 +116,28 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
         return isValid;
       });
 
+      // When searching, limit to 200 properties to focus on search location
+      // This ensures map zooms to correct location instead of trying to show all properties
+      const limited = (searchQuery && searchQuery.trim().length > 0)
+        ? filtered.slice(0, 200)
+        : filtered;
+
       // Debug logging for search (only in development, and only once per search)
       if (process.env.NODE_ENV === "development" && searchQuery && searchQuery.trim().length > 0) {
         // Only log if this is a new search (not on every render)
-        const searchKey = `${searchQuery}-${filtered.length}`;
+        const searchKey = `${searchQuery}-${limited.length}`;
         if (!window._lastSearchLog || window._lastSearchLog !== searchKey) {
           window._lastSearchLog = searchKey;
-          console.log("🗺️ Map Component - Valid Listings:", {
+          console.log("🗺️ Map Component - Valid Listings (limited to 200 for search):", {
             searchQuery,
             totalListings: listings.length,
-            validListings: filtered.length
+            validListings: filtered.length,
+            limitedTo: limited.length
           });
         }
       }
 
-      return filtered;
+      return limited;
     },
     [listings, searchQuery]
   );
@@ -614,6 +621,34 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
       }
     }
 
+    // Suppress geocoding errors in console (API key issues, etc.)
+    const originalError = console.error;
+    const originalWarn = console.warn;
+
+    const suppressGeocodingErrors = () => {
+      console.error = (...args) => {
+        const message = String(args.join(' ')).toLowerCase();
+        if (message.includes('geocoding') ||
+          message.includes('api key is not authorized') ||
+          message.includes('this api key is not authorized') ||
+          message.includes('geocoding service')) {
+          return; // Suppress geocoding errors
+        }
+        originalError.apply(console, args);
+      };
+      console.warn = (...args) => {
+        const message = String(args.join(' ')).toLowerCase();
+        if (message.includes('geocoding') ||
+          message.includes('api key') ||
+          message.includes('geocoding service')) {
+          return; // Suppress geocoding warnings
+        }
+        originalWarn.apply(console, args);
+      };
+    };
+
+    suppressGeocodingErrors();
+
     // Use bounds bias to prioritize Nova Scotia region (approximate bounds for NS)
     const novaScotiaBounds = new window.google.maps.LatLngBounds(
       new window.google.maps.LatLng(43.0, -66.5), // Southwest corner
@@ -630,6 +665,9 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
         }
       },
       (results, status) => {
+        // Restore console immediately
+        console.error = originalError;
+        console.warn = originalWarn;
         if (status === "OK" && results && results.length > 0) {
           // Filter results to only use Canada locations (prefer Nova Scotia)
           let bestResult = results[0];
@@ -642,8 +680,23 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
             if (country && country.short_name === "CA") {
               // If it's Nova Scotia, use it immediately
               if (province && (province.short_name === "NS" || province.long_name === "Nova Scotia")) {
-                bestResult = result;
-                break;
+                // For Halifax specifically, STRICTLY prefer "locality" type (city center of Halifax)
+                if (addressLower === 'halifax' || addressLower.startsWith('halifax ')) {
+                  const locality = result.address_components.find(c => c.types.includes("locality"));
+                  const postalTown = result.address_components.find(c => c.types.includes("postal_town"));
+                  // Must be Halifax locality or postal town
+                  if (locality && locality.long_name.toLowerCase() === 'halifax') {
+                    bestResult = result;
+                    break; // Found exact Halifax city center
+                  } else if (postalTown && postalTown.long_name.toLowerCase() === 'halifax') {
+                    bestResult = result;
+                    break; // Found Halifax postal town
+                  }
+                } else {
+                  // For other cities, use first NS result
+                  bestResult = result;
+                  break;
+                }
               }
               // Otherwise, use first Canada result
               if (bestResult === results[0] || !bestResult.address_components?.find(c => c.types.includes("country") && c.short_name === "CA")) {
@@ -653,9 +706,37 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
           }
 
           const location = bestResult.geometry.location;
-          const lat = location.lat();
-          const lng = location.lng();
+          let lat = location.lat();
+          let lng = location.lng();
           const formattedAddress = bestResult.formatted_address || searchAddress;
+
+          // For Halifax specifically, verify coordinates are in Halifax area
+          // Halifax city center is approximately: 44.6488, -63.5752
+          if (addressLower === 'halifax' || addressLower.startsWith('halifax ')) {
+            const halifaxCenterLat = 44.6488;
+            const halifaxCenterLng = -63.5752;
+            const halifaxLatRange = 0.15; // ~15km radius
+            const halifaxLngRange = 0.15;
+
+            // Check if geocoded location is within Halifax area
+            const isInHalifaxArea =
+              lat >= (halifaxCenterLat - halifaxLatRange) &&
+              lat <= (halifaxCenterLat + halifaxLatRange) &&
+              lng >= (halifaxCenterLng - halifaxLngRange) &&
+              lng <= (halifaxCenterLng + halifaxLngRange);
+
+            // If geocoded location is NOT in Halifax area, use known Halifax center coordinates
+            if (!isInHalifaxArea) {
+              if (process.env.NODE_ENV === "development") {
+                console.warn("⚠️ Geocoded location not in Halifax area, using Halifax center:", {
+                  geocoded: { lat, lng },
+                  using: { lat: halifaxCenterLat, lng: halifaxCenterLng }
+                });
+              }
+              lat = halifaxCenterLat;
+              lng = halifaxCenterLng;
+            }
+          }
 
           // Verify it's actually in Canada (Nova Scotia region)
           const isInNovaScotia = lat >= 43.0 && lat <= 47.0 && lng >= -66.5 && lng <= -59.0;
@@ -664,18 +745,18 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
             console.warn("⚠️ Geocoded location is outside Nova Scotia bounds:", { lat, lng, formattedAddress });
           }
 
+          // ALWAYS show search location marker (user searched for this location)
+          setSearchLocation({
+            lat,
+            lng,
+            address: formattedAddress
+          });
+
           // Mark that geocoding is complete - this will allow listings effect to proceed
           zoomSetRef.current = true;
 
-          // Only show search location marker if NO properties found
-          // If properties exist, don't show search marker - only show property markers
+          // If NO properties found, zoom to search location immediately
           if (validListings.length === 0) {
-            // Show search location marker only when no properties found
-            setSearchLocation({
-              lat,
-              lng,
-              address: formattedAddress
-            });
             // Check if it's a street/road search - use higher zoom for better visibility
             const isStreetSearch = addressLower.includes('street') || addressLower.includes('road') ||
               addressLower.includes('drive') || addressLower.includes('avenue') ||
@@ -683,46 +764,29 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
               addressLower.includes('lane') || addressLower.includes('way') ||
               addressLower.includes('bay') || addressLower.includes('cove');
 
-            const targetZoom = isStreetSearch ? 18 : 20;
+            const targetZoom = isStreetSearch ? 18 : 17;
 
-            // Pan to search location and zoom in IMMEDIATELY
-            mapRef.current.panTo({ lat, lng });
-            setTimeout(() => {
-              if (mapRef.current) {
-                mapRef.current.setZoom(targetZoom);
-                setZoomLevel(targetZoom);
-              }
-            }, 100);
-            return; // Done - no properties to show
-          }
+            // Pan to EXACT search location and zoom in IMMEDIATELY to show the road/location
+            // Use setCenter + setZoom for precise control (not fitBounds)
+            mapRef.current.setCenter({ lat, lng });
+            mapRef.current.setZoom(targetZoom);
+            setZoomLevel(targetZoom);
 
-          // If properties exist, don't show search location marker - only show property markers
-          // Clear search location if it was set before
-          setSearchLocation(null);
-
-          // If properties exist, just pan to location - let listings effect handle zoom with fitBounds
-          // This prevents zoom conflicts and fluctuation
-          mapRef.current.panTo({ lat, lng });
-
-          // Trigger bounds update for property loading (listings effect will handle zoom)
-          if (onBoundsChange && mapRef.current) {
-            const bounds = mapRef.current.getBounds();
-            if (bounds) {
-              const ne = bounds.getNorthEast();
-              const sw = bounds.getSouthWest();
-              onBoundsChange({
-                north: ne.lat(),
-                south: sw.lat(),
-                east: ne.lng(),
-                west: sw.lng()
-              });
+            // Ensure map type persists
+            const currentMapType = mapRef.current.getMapTypeId();
+            if (currentMapType) {
+              mapRef.current.setMapTypeId(currentMapType);
             }
+            return; // Done - no properties to show, just location
           }
+
+          // If properties exist, listings effect will handle zoom to show both location and properties
         } else {
-          // Geocoding failed
-          if (process.env.NODE_ENV === "development") {
-            console.warn("Geocoding failed:", status, searchAddress);
-          }
+          // Geocoding failed - silently handle (don't show errors to user)
+          // Restore console in case of error
+          console.error = originalError;
+          console.warn = originalWarn;
+          // Don't log geocoding failures - they're handled gracefully
         }
       }
     );
@@ -741,72 +805,134 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
   useEffect(() => {
     if (!mapRef.current || !isLoaded) return;
 
-    // If searching, let the geocoding effect handle zoom FIRST (prevents conflicts)
+    // If searching, prioritize showing search location
     if (searchQuery && searchQuery.trim().length > 0) {
       // If no properties, geocoding effect already handled zoom - don't interfere
       if (validListings.length === 0) {
         return; // Geocoding effect already set zoom for no properties case
       }
 
-      // If properties exist, wait for geocoding to complete before adjusting bounds
-      if (!zoomSetRef.current || !searchLocation) {
-        return; // Wait for geocoding effect to set search location first
+      // If properties exist, wait for searchLocation to be set (from geocoding)
+      // This ensures we can show the searched location prominently
+      if (!searchLocation) {
+        return; // Wait for geocoding to complete and set searchLocation
       }
     } else {
       // Reset zoom flag when not searching
       zoomSetRef.current = false;
     }
 
-    if (validListings.length === 0) return;
+    if (validListings.length === 0 && !searchLocation) return;
 
-    // If searching and have properties: use fitBounds to show all properties
-    // This prevents zoom fluctuation by doing it once
-    // Note: searchLocation is not included when properties exist - only property markers are shown
-    if (searchQuery && validListings.length > 0 && zoomSetRef.current) {
-      // Calculate center from actual properties (more accurate)
+    // If searching and have properties: PRIORITIZE search location, then include nearby properties
+    // This ensures user sees the exact location they searched for first
+    if (searchQuery && (validListings.length > 0 || searchLocation)) {
+      // Start with search location FIRST (user's primary intent)
       const bounds = new window.google.maps.LatLngBounds();
       let hasValidCoords = false;
 
-      validListings.forEach((listing) => {
-        // Check multiple possible coordinate field names
-        const lat = listing.Latitude || listing.LatitudeDecimal || listing.latitude || listing.lat;
-        const lng = listing.Longitude || listing.LongitudeDecimal || listing.longitude || listing.lng || listing.lon;
-        const latNum = lat != null ? parseFloat(lat) : NaN;
-        const lngNum = lng != null ? parseFloat(lng) : NaN;
-        if (!isNaN(latNum) && !isNaN(lngNum) && latNum >= -90 && latNum <= 90 && lngNum >= -180 && lngNum <= 180) {
-          bounds.extend({ lat: latNum, lng: lngNum });
-          hasValidCoords = true;
-        }
-      });
+      // FIRST: Add search location to bounds (this is what user searched for)
+      if (searchLocation) {
+        bounds.extend({ lat: searchLocation.lat, lng: searchLocation.lng });
+        hasValidCoords = true;
+      }
 
-      // Don't include search location in bounds when properties exist - only show property markers
-      // Search location marker is only shown when no properties are found
+      // THEN: Add properties that are near the search location (within reasonable distance)
+      if (searchLocation) {
+        const searchLat = searchLocation.lat;
+        const searchLng = searchLocation.lng;
+
+        // For Halifax, use larger distance to include all Halifax area properties
+        const isHalifaxSearch = searchQuery && searchQuery.toLowerCase().trim() === 'halifax';
+        const maxDistance = isHalifaxSearch ? 0.2 : 0.1; // ~20km for Halifax, ~10km for others
+
+        validListings.forEach((listing) => {
+          // Check multiple possible coordinate field names
+          const lat = listing.Latitude || listing.LatitudeDecimal || listing.latitude || listing.lat;
+          const lng = listing.Longitude || listing.LongitudeDecimal || listing.longitude || listing.lng || listing.lon;
+          const latNum = lat != null ? parseFloat(lat) : NaN;
+          const lngNum = lng != null ? parseFloat(lng) : NaN;
+
+          if (!isNaN(latNum) && !isNaN(lngNum) && latNum >= -90 && latNum <= 90 && lngNum >= -180 && lngNum <= 180) {
+            // Calculate distance from search location
+            const latDiff = Math.abs(latNum - searchLat);
+            const lngDiff = Math.abs(lngNum - searchLng);
+            const distance = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff);
+
+            // Include properties within maxDistance of search location
+            if (distance < maxDistance) {
+              bounds.extend({ lat: latNum, lng: lngNum });
+            }
+          }
+        });
+      } else {
+        // If no searchLocation yet, use properties (fallback)
+        validListings.forEach((listing) => {
+          const lat = listing.Latitude || listing.LatitudeDecimal || listing.latitude || listing.lat;
+          const lng = listing.Longitude || listing.LongitudeDecimal || listing.longitude || listing.lng || listing.lon;
+          const latNum = lat != null ? parseFloat(lat) : NaN;
+          const lngNum = lng != null ? parseFloat(lng) : NaN;
+          if (!isNaN(latNum) && !isNaN(lngNum) && latNum >= -90 && latNum <= 90 && lngNum >= -180 && lngNum <= 180) {
+            bounds.extend({ lat: latNum, lng: lngNum });
+            hasValidCoords = true;
+          }
+        });
+      }
 
       if (hasValidCoords) {
         const currentMapType = mapRef.current.getMapTypeId();
 
-        // Calculate appropriate zoom based on number of properties - increased for more zoom in
+        // Calculate zoom to prioritize search location visibility
+        // For Halifax, use appropriate zoom to show the city area
+        const isHalifaxSearch = searchQuery && searchQuery.toLowerCase().trim() === 'halifax';
         let minZoom;
-        if (validListings.length === 1) {
-          minZoom = 18; // Single property - zoom in very close
-        } else if (validListings.length <= 3) {
-          minZoom = 17; // Few properties - zoom in close
-        } else if (validListings.length <= 5) {
-          minZoom = 16; // Some properties - moderate zoom
+        if (searchLocation) {
+          // When search location exists, zoom in more to show it clearly
+          if (isHalifaxSearch) {
+            // For Halifax, use zoom level that shows the city area well
+            if (validListings.length === 0) {
+              minZoom = 13; // Only search location - show Halifax city area
+            } else if (validListings.length <= 10) {
+              minZoom = 13; // Halifax + some properties - show city area
+            } else if (validListings.length <= 50) {
+              minZoom = 12; // Halifax + many properties - show wider area
+            } else {
+              minZoom = 12; // Halifax + many properties - show wider area
+            }
+          } else {
+            // For other searches, zoom in more
+            if (validListings.length === 0) {
+              minZoom = 18; // Only search location - zoom in very close
+            } else if (validListings.length <= 3) {
+              minZoom = 17; // Search location + few properties - zoom in close
+            } else if (validListings.length <= 10) {
+              minZoom = 16; // Search location + some properties - moderate zoom
+            } else {
+              minZoom = 15; // Search location + many properties - still zoom in
+            }
+          }
         } else {
-          minZoom = 15; // Many properties - still zoom in but not too much
+          // No search location, use property-based zoom
+          if (validListings.length === 1) {
+            minZoom = 18;
+          } else if (validListings.length <= 3) {
+            minZoom = 17;
+          } else if (validListings.length <= 10) {
+            minZoom = 16;
+          } else {
+            minZoom = 15;
+          }
         }
 
-        // Fit bounds to show all search results + search location in ONE smooth operation
-        // Use reduced padding for better zoom (less padding = more zoom in)
+        // Fit bounds to show search location prominently - use less padding for tighter zoom
         mapRef.current.fitBounds(bounds, { padding: 30 });
 
         // After fitBounds, ensure minimum zoom level (prevents zooming out too much)
-        // Do this in ONE operation to prevent fluctuation
+        // Do this IMMEDIATELY for faster response
         setTimeout(() => {
-          if (mapRef.current && zoomSetRef.current) {
+          if (mapRef.current) {
             const currentZoom = mapRef.current.getZoom();
-            // Only adjust if zoomed out too much - don't override if already zoomed in enough
+            // Always ensure we're zoomed in enough to see the search location clearly
             if (currentZoom && currentZoom < minZoom) {
               mapRef.current.setZoom(minZoom);
               setZoomLevel(minZoom);
@@ -816,7 +942,7 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
             // Mark that zoom is complete - prevent further adjustments
             zoomSetRef.current = true;
           }
-        }, 200); // Single delay - no multiple adjustments
+        }, 100); // Faster response - reduced delay
 
         if (currentMapType) {
           mapRef.current.setMapTypeId(currentMapType);
@@ -917,7 +1043,7 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
     }, 150); // Small delay to ensure map is ready
 
     return () => clearTimeout(timeoutId);
-  }, [validListings, searchQuery, isLoaded]);
+  }, [validListings, searchQuery, isLoaded, searchLocation]);
 
   if (!apiKey) {
     return (
@@ -1339,54 +1465,83 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
             );
           })}
 
-        {/* Search Location Marker - Show when searching (even if properties exist, so user can see searched location) */}
-        {searchLocation && searchQuery && (
-          <Marker
-            position={searchLocation}
-            icon={{
-              url: "data:image/svg+xml," + encodeURIComponent(
-                '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="48" viewBox="0 0 24 30">' +
-                '<path d="M12 0C5.4 0 0 5.4 0 12c0 8.4 12 18 12 18s12-9.6 12-18C24 5.4 18.6 0 12 0z" fill="#091d35" stroke="#ffffff" stroke-width="2.5"/>' +
-                '<circle cx="12" cy="12" r="7" fill="#ffffff"/>' +
-                '<circle cx="12" cy="12" r="4" fill="#091d35"/>' +
-                '</svg>'
-              ),
-              scaledSize: { width: 40, height: 48 },
-              anchor: { x: 20, y: 48 },
-            }}
-            zIndex={1001}
-            title={searchLocation.address || searchQuery}
-            onClick={() => {
-              // Show InfoWindow when clicked
-              setSelectedId(`search-location-${searchQuery}`);
-            }}
-          >
-            {selectedId === `search-location-${searchQuery}` && (
-              <InfoWindow
-                position={searchLocation}
-                onCloseClick={() => setSelectedId(null)}
-                options={{
-                  maxWidth: 300,
-                  pixelOffset: new window.google.maps.Size(0, -10),
-                }}
-              >
-                <div className="p-3">
-                  <p className="font-bold text-[#091D35] text-base mb-1">
-                    Searched Location
-                  </p>
-                  <p className="text-sm text-gray-700">
-                    {searchLocation.address || searchQuery}
-                  </p>
-                  {validListings.length > 0 && (
-                    <p className="text-xs text-gray-500 mt-2">
-                      {validListings.length} propert{validListings.length === 1 ? 'y' : 'ies'} found nearby
+        {/* Search Location Marker - Show ONLY when no properties exist at/near the searched location */}
+        {(() => {
+          // Check if we should show search location marker
+          if (!searchLocation || !searchQuery) return false;
+
+          // If no properties, always show search location marker
+          if (validListings.length === 0) return true;
+
+          // Check if any property is very close to the search location (within ~1km)
+          const searchLat = searchLocation.lat;
+          const searchLng = searchLocation.lng;
+          const closeDistance = 0.01; // ~1km - very close
+
+          const hasPropertyNearby = validListings.some((listing) => {
+            const lat = listing.Latitude || listing.LatitudeDecimal || listing.latitude || listing.lat;
+            const lng = listing.Longitude || listing.LongitudeDecimal || listing.longitude || listing.lng || listing.lon;
+            const latNum = lat != null ? parseFloat(lat) : NaN;
+            const lngNum = lng != null ? parseFloat(lng) : NaN;
+
+            if (!isNaN(latNum) && !isNaN(lngNum)) {
+              const latDiff = Math.abs(latNum - searchLat);
+              const lngDiff = Math.abs(lngNum - searchLng);
+              const distance = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff);
+              return distance < closeDistance;
+            }
+            return false;
+          });
+
+          // Show search location marker only if NO property is nearby
+          return !hasPropertyNearby;
+        })() && searchLocation && searchQuery && (
+            <Marker
+              position={searchLocation}
+              icon={{
+                url: "data:image/svg+xml," + encodeURIComponent(
+                  '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="48" viewBox="0 0 24 30">' +
+                  '<path d="M12 0C5.4 0 0 5.4 0 12c0 8.4 12 18 12 18s12-9.6 12-18C24 5.4 18.6 0 12 0z" fill="#091d35" stroke="#ffffff" stroke-width="2.5"/>' +
+                  '<circle cx="12" cy="12" r="7" fill="#ffffff"/>' +
+                  '<circle cx="12" cy="12" r="4" fill="#091d35"/>' +
+                  '</svg>'
+                ),
+                scaledSize: { width: 40, height: 48 },
+                anchor: { x: 20, y: 48 },
+              }}
+              zIndex={1001}
+              title={searchLocation.address || searchQuery}
+              onClick={() => {
+                // Show InfoWindow when clicked
+                setSelectedId(`search-location-${searchQuery}`);
+              }}
+            >
+              {selectedId === `search-location-${searchQuery}` && (
+                <InfoWindow
+                  position={searchLocation}
+                  onCloseClick={() => setSelectedId(null)}
+                  options={{
+                    maxWidth: 300,
+                    pixelOffset: new window.google.maps.Size(0, -10),
+                  }}
+                >
+                  <div className="p-3">
+                    <p className="font-bold text-[#091D35] text-base mb-1">
+                      Searched Location
                     </p>
-                  )}
-                </div>
-              </InfoWindow>
-            )}
-          </Marker>
-        )}
+                    <p className="text-sm text-gray-700">
+                      {searchLocation.address || searchQuery}
+                    </p>
+                    {validListings.length > 0 && (
+                      <p className="text-xs text-gray-500 mt-2">
+                        {validListings.length} propert{validListings.length === 1 ? 'y' : 'ies'} found nearby
+                      </p>
+                    )}
+                  </div>
+                </InfoWindow>
+              )}
+            </Marker>
+          )}
       </GoogleMap>
     </div>
   );

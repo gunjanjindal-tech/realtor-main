@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { Search } from "lucide-react";
 import FullMenu from "./FullMenu";
 
 export default function Header() {
   const router = useRouter();
+  const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -32,7 +33,7 @@ export default function Header() {
 
           {/* LOGO */}
           <Link href="/" className="text-xl md:text-2xl text-red-500 font-extrabold tracking-wide">
-           BANSAL .
+            BANSAL .
           </Link>
 
           {/* NAV – Desktop Only */}
@@ -51,7 +52,7 @@ export default function Header() {
               href="tel:19023995007"
               className="hidden lg:block text-sm font-semibold hover:text-white/80"
             >
-               +1(902)399-5007
+              +1(902)399-5007
             </a>
 
             {/* SEARCH – Tablet+ */}
@@ -59,7 +60,18 @@ export default function Header() {
               onSubmit={(e) => {
                 e.preventDefault();
                 if (searchQuery.trim()) {
-                  router.push(`/listings?q=${encodeURIComponent(searchQuery.trim())}`);
+                  // Determine listing type based on current page
+                  let listingType = "sale"; // default
+                  if (pathname?.startsWith("/new-development")) {
+                    listingType = "new-development";
+                  } else if (pathname?.startsWith("/rent")) {
+                    listingType = "rent";
+                  } else if (pathname?.startsWith("/sell")) {
+                    listingType = "sell";
+                  }
+
+                  // Redirect to listings page with appropriate type and search query
+                  router.push(`/listings?type=${listingType}&q=${encodeURIComponent(searchQuery.trim())}`);
                   setSearchQuery(""); // Clear search bar after search
                 }
               }}
@@ -83,14 +95,14 @@ export default function Header() {
             </form>
 
             {/* CTA – Desktop Only */}
-           <a
-  href="https://akshay42hj.setmore.com"
-  target="_blank"
-  rel="noopener noreferrer"
-  className="hidden xl:inline-flex rounded-full bg-red-600 px-6 py-2 text-sm font-semibold hover:bg-red-700"
->
-  Schedule Meeting
-</a>
+            <a
+              href="https://akshay42hj.setmore.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden xl:inline-flex rounded-full bg-red-600 px-6 py-2 text-sm font-semibold hover:bg-red-700"
+            >
+              Schedule Meeting
+            </a>
 
 
             {/* MENU – Always */}
