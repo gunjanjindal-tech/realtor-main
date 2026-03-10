@@ -123,17 +123,17 @@ export default function CityMap({ city, filters = {} }) {
   }
 
   return (
-    <section className="bg-white py-24">
-      <div className="max-w-[1600px] mx-auto px-6">
-        <div className="mb-12 max-w-2xl">
+    <section className="bg-white pb-14">
+     <div className="max-w-[1600px] mx-auto px-6">
+        <div className="mb-12 max-w-3xl">
           <span className="text-sm font-semibold uppercase tracking-widest text-gray-400">
-            Property Locations
+             Homes for Sale
           </span>
 
-          <h2 className="mt-3 text-3xl md:text-4xl font-extrabold text-[#091D35]">
-            All Properties in {city} on Map
+          <h2 className="mt-3 text-4xl md:text-5xl font-extrabold text-[#091D35]">
+            Discover Homes for Sale in {city}
           </h2>
-
+ <div className="mt-6 h-[3px] w-24 bg-red-600" />
           <p className="mt-6 text-gray-600">
             Showing {allListings.length} properties with map coordinates.
           </p>

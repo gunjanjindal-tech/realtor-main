@@ -93,12 +93,12 @@ export default function PropertyCard({ listing, showNewDevelopmentBadge = false,
 
         <div className="absolute top-4 left-4 flex flex-col gap-2">
           {listingType !== "newDevelopment" && (
-            <span className="bg-red-600 text-white text-xs font-semibold px-3 py-1 rounded-full">
+            <span className="bg-[#091D35] text-white text-xs font-semibold px-3 py-1 rounded-full">
               {listingType === "rent" ? "For Rent" : "For Sale"}
             </span>
           )}
           {(listingType === "newDevelopment" || isNewDevelopment) && (
-            <span className="bg-blue-600 text-white text-xs font-semibold px-3 py-1 rounded-full">
+            <span className="bg-[#091D35] text-white text-xs font-semibold px-3 py-1 rounded-full">
               New Development
             </span>
           )}

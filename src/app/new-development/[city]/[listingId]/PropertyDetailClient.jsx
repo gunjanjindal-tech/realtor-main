@@ -8,6 +8,7 @@ import PropertyContent from "@/components/property/PropertyContent";
 import PropertySidebar from "@/components/property/PropertySidebar";
 import PropertyMap from "@/components/property/PropertyMap";
 import PremiumBuyerCTA from "@/components/PremiumBuyerCTA";
+import ContactForm from "@/components/contact/ContactForm";
 
 export default function PropertyDetailClient() {
   const params = useParams();
@@ -16,6 +17,24 @@ export default function PropertyDetailClient() {
   const [listing, setListing] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+const [showPopup, setShowPopup] = useState(false);
+const [submitted, setSubmitted] = useState(false);
+const [popupCount, setPopupCount] = useState(0);
+  
+useEffect(() => {
+  if (submitted || popupCount >= 3) return;
+
+  const timers = [5000, 15000, 15000];
+
+  const timer = setTimeout(() => {
+    setShowPopup(true);
+  }, timers[popupCount]);
+
+  return () => clearTimeout(timer);
+}, [popupCount, submitted]);
+  
+  
 
   useEffect(() => {
     if (params?.city && params?.listingId) {
@@ -119,12 +138,80 @@ export default function PropertyDetailClient() {
         </div>
       </section>
 
-      <PremiumBuyerCTA />
-      <PropertyMap listing={listing} />
+      
+      
+{showPopup && !submitted && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+<div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto animate-[fadeIn_.25s_ease]">
+
+      {/* Close Button */}
+      <button
+ onClick={() => {
+  setShowPopup(false);
+  setPopupCount((prev) => prev + 1);
+}}
+        className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-full bg-white/90 shadow hover:bg-gray-100 transition"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          className="w-5 h-5 text-gray-600"
+          viewBox="0 0 20 20"
+          fill="currentColor"
+        >
+          <path
+            fillRule="evenodd"
+            d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 
+            111.414 1.414L11.414 10l4.293 4.293a1 1 0 
+            01-1.414 1.414L10 11.414l-4.293 
+            4.293a1 1 0 01-1.414-1.414L8.586 
+            10 4.293 5.707a1 1 0 010-1.414z"
+            clipRule="evenodd"
+          />
+        </svg>
+      </button>
+
+      {/* Property Image */}
+      {listing?.Images?.[0] && (
+        <div className="w-full h-24 sm:h-36 overflow-hidden">
+          <img
+            src={listing.Images[0]}
+            alt="property"
+            className="w-full h-full object-cover"
+          />
+        </div>
+      )}
+
+      {/* Content */}
+      <div className="px-6 sm:px-6 py-4">
+
+
+        {/* Address */}
+        <p className="text-center text-[#091D35] font-semibold text-md mb-2">
+          {listing?.UnparsedAddress}
+        </p>
+
+
+
+        {/* Form */}
+        <ContactForm
+          propertyAddress={listing?.UnparsedAddress}
+          price={listing?.ListPrice}
+         onSuccess={() => {
+  setSubmitted(true);
+  setShowPopup(false);
+  setPopupCount(3);
+}}
+        />
+
+
+      </div>
+    </div>
+  </div>
+)}
+     
     </>
   );
 }
-
 
 
 

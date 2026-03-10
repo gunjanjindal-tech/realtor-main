@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, memo } from "react";
+import { GoogleMap, Marker, LoadScriptNext } from "@react-google-maps/api";
 
 function PropertyContent({ property }) {
   const [expanded, setExpanded] = useState(false);
@@ -48,20 +49,89 @@ function PropertyContent({ property }) {
     : [
         property?.LotSizeAcres && `${property.LotSizeAcres} Acres`,
         property?.PropertyType && property.PropertyType,
-      ].filter(Boolean);
+    ].filter(Boolean);
+  
+const derivedHistory = [
+
+  property?.YearBuilt && { label: "Built", value: property.YearBuilt },
+
+  property?.ListingContractDate && { 
+    label: "Listing Contract Date", 
+    value: property.ListingContractDate 
+  },
+
+  property?.OnMarketDate && { 
+    label: "Listed On Market", 
+    value: property.OnMarketDate 
+  },
+
+  property?.OriginalListPrice && { 
+    label: "Original List Price", 
+    value: property.OriginalListPrice 
+  },
+
+  property?.ListPrice && { 
+    label: "Current List Price", 
+    value: property.ListPrice 
+  },
+
+  property?.PreviousListPrice && { 
+    label: "Previous List Price", 
+    value: property.PreviousListPrice 
+  },
+
+  property?.DaysOnMarket && { 
+    label: "Days On Market", 
+    value: property.DaysOnMarket 
+  },
+
+  property?.StandardStatus && { 
+    label: "Current Status", 
+    value: property.StandardStatus 
+  },
+
+  property?.ModificationTimestamp && { 
+    label: "Last Updated", 
+    value: property.ModificationTimestamp 
+  },
+
+  property?.ClosePrice && { 
+    label: "Last Sold Price", 
+    value: property.ClosePrice 
+  },
+
+  property?.CloseDate && { 
+    label: "Sold Date", 
+    value: property.CloseDate 
+  }
+
+].filter(Boolean);
 
   // Sale / price history from API
   const saleHistoryRows = property?.SaleHistory ?? [];
   const historyArray = Array.isArray(property?.History) ? property.History : [];
-  const hasSaleHistory = saleHistoryRows.length > 0 || historyArray.length > 0;
-
+const hasSaleHistory =
+  saleHistoryRows.length > 0 ||
+  historyArray.length > 0 ||
+    derivedHistory.length > 0;
+  
+  
   const formatPrice = (v) => {
     if (v == null || v === "") return "—";
     const n = Number(v);
     if (Number.isNaN(n)) return String(v);
     return `${n.toLocaleString()}`;
   };
-  const formatDate = (v) => (v == null || v === "" ? "—" : String(v));
+const formatDate = (v) => {
+  if (!v) return "—";
+  return new Date(v).toLocaleDateString("en-CA", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+  };
+  
+
 
  const formatCurrency = (value) => {
   if (!value) return "—";
@@ -84,8 +154,32 @@ const financials = {
           Math.round(property.ListPrice / property.BuildingAreaTotal)
         )
       : "—",
+  };
+  
+
+  const propertyFacts = {
+  Bedrooms: property?.BedroomsTotal || "—",
+  Bathrooms: property?.BathroomsTotalInteger || "—",
+  Garage: property?.GarageSpaces || "—",
+  Parking: property?.ParkingTotal || "—",
+  Heating: property?.Heating?.join(", ") || "—",
+  Cooling: property?.Cooling?.join(", ") || "—",
+  Basement: property?.Basement || "—",
+  Style: property?.ArchitecturalStyle || "—",
 };
 
+  
+  const mapContainerStyle = {
+  width: "100%",
+  height: "400px",
+};
+
+const center = {
+  lat: parseFloat(property?.Latitude),
+  lng: parseFloat(property?.Longitude),
+};
+  
+  
   return (
    <div className="space-y-20 -mt-8 md:mt-2">
 
@@ -119,11 +213,11 @@ const financials = {
       <section className="max-w-[1200px]">
         <SectionTitle title="Overview" />
 
-        <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="mt-10 grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {Object.entries(overview).map(([key, value]) => (
             <div
               key={key}
-              className="rounded-2xl border border-gray-200 bg-white px-8 py-7
+              className="rounded-2xl border border-gray-200 bg-white px-4 py-7
                          transition-all duration-300
                          hover:-translate-y-[2px] hover:shadow-lg"
             >
@@ -139,21 +233,21 @@ const financials = {
       </section>
 
          {/* FINANCIALS — WHITE BOXES */}
-      <section className="max-w-[900px]">
+      <section className="max-w-[400px]">
         <SectionTitle title="Financials" />
 
-        <div className="mt-10 grid sm:grid-cols-2 gap-6">
+        <div className="mt-10 grid grid-cols-2  sm:grid-cols-2 gap-6">
           {Object.entries(financials).map(([key, value]) => (
             <div
               key={key}
-              className="rounded-2xl border border-gray-200 bg-white px-8 py-7
+              className="rounded-2xl border border-gray-200 bg-[#091D35] px-4 py-7
                          transition-all duration-300
                          hover:-translate-y-[2px] hover:shadow-lg"
             >
-              <p className="text-[11px] uppercase tracking-widest text-gray-500">
+              <p className="text-[11px] uppercase tracking-widest text-white">
                 {key}
               </p>
-             <p className="mt-2 text-xl sm:text-2xl font-bold text-[#091D35]">
+             <p className="mt-2 text-xl sm:text-2xl font-bold text-white">
   {value}
 </p>
             </div>
@@ -162,6 +256,28 @@ const financials = {
       </section>
 
      
+      {/* PROPERTY FACTS */}
+<section className="max-w-[1200px]">
+  <SectionTitle title="Property Facts" />
+
+  <div className="mt-10 grid sm:grid-cols-4 gap-6">
+    {Object.entries(propertyFacts).map(([key, value]) => (
+      <div
+        key={key}
+        className="rounded-2xl border border-gray-200 bg-white px-4 py-7
+                   hover:-translate-y-[2px] hover:shadow-lg transition"
+      >
+        <p className="text-[11px] uppercase tracking-widest text-gray-500">
+          {key}
+        </p>
+
+        <p className="mt-2 text-md font-semibold text-[#091D35]">
+          {value}
+        </p>
+      </div>
+    ))}
+  </div>
+</section>
 
       {/* INTERIOR & EXTERIOR — from API */}
       {(interiorItems.length > 0 || exteriorItems.length > 0) && (
@@ -169,7 +285,7 @@ const financials = {
           <SectionTitle title="Interior & Exterior" />
           <div className="mt-12 grid md:grid-cols-2 gap-8">
             {interiorItems.length > 0 && (
-              <div className="rounded-2xl bg-[#0A1F44] px-10 py-9">
+              <div className="rounded-2xl bg-[#0A1F44] px-8 py-9">
                 <h4 className="text-sm font-bold tracking-widest uppercase text-white/70">Interior</h4>
                 <ul className="mt-6 space-y-3 text-sm text-white">
                   {interiorItems.map((item) => (
@@ -197,17 +313,19 @@ const financials = {
           </div>
         </section>
       )}
+
+
  {/* PROPERTY HISTORY — always show; table when API has data, else message */}
       <section className="max-w-[1200px]">
         <SectionTitle title="Property History" />
         {hasSaleHistory ? (
-          <div className="mt-10 rounded-2xl border border-gray-200 bg-white overflow-hidden">
+          <div className="mt-10 rounded-2xl border border-[#0A1F44] bg-white overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="text-left py-4 px-6 font-semibold text-[#091D35]">Event</th>
-                    <th className="text-left py-4 px-6 font-semibold text-[#091D35]">Date / Price</th>
+                  <tr className="bg-[#0A1F44] text-white border-b border-white">
+                    <th className="text-left py-4 px-6 font-semibold ">Event</th>
+                    <th className="text-left py-4 px-6 font-semibold ">Date / Price</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -233,7 +351,22 @@ const financials = {
                       </td>
                     </tr>
                   ))}
+                   {derivedHistory.map((row, i) => (
+  <tr key={`derived-${i}`} className="border-b border-gray-100 last:border-0">
+    <td className="py-4 px-6 text-[#091D35]">{row.label}</td>
+    <td className="py-4 px-6 font-semibold text-[#091D35]">
+      {row.label.toLowerCase().includes("price")
+  ? formatCurrency(row.value)
+  : row.label.toLowerCase().includes("date")
+  ? formatDate(row.value)
+  : row.value}
+    </td>
+  </tr>
+                   ))}
+                  
+                  
                 </tbody>
+               
               </table>
             </div>
           </div>
@@ -247,9 +380,42 @@ const financials = {
             </p>
           </div>
         )}
+
+        
       </section>
    
+      {/* PROPERTY LOCATION */}
+<section className="max-w-[1200px]">
+  <SectionTitle title="Property Location" />
 
+  <div className="mt-10 rounded-2xl overflow-hidden border border-gray-200">
+    {property?.Latitude && property?.Longitude ? (
+      <LoadScriptNext googleMapsApiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}>
+     <GoogleMap
+  mapContainerStyle={mapContainerStyle}
+  center={center}
+  zoom={16}
+  options={{
+    mapTypeControl: true,
+    streetViewControl: false,
+    fullscreenControl: true
+  }}
+>
+  <Marker position={center} />
+</GoogleMap>
+      </LoadScriptNext>
+    ) : (
+      <div className="p-10 text-center text-gray-500">
+        Location data not available.
+      </div>
+    )}
+        </div>
+        {/* ADD ADDRESS HERE */}
+  <p className="mt-4 text-gray-600">
+    📍 {property?.UnparsedAddress}
+  </p>
+      </section>
+      
     </div>
   );
 }

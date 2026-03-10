@@ -23,12 +23,38 @@ export async function bridgeFetch(endpoint) {
     throw new Error("BRIDGE_SERVER_TOKEN is not set in environment variables");
   }
 
-  const res = await fetch(url, {
-    cache: "no-store",
-    headers: {
-      "Accept": "application/json",
-    },
-  });
+  let res;
+  try {
+    // Create AbortController for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
+    res = await fetch(url, {
+      cache: "no-store",
+      headers: {
+        "Accept": "application/json",
+      },
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+  } catch (fetchError) {
+    // Handle network errors (timeout, connection refused, etc.)
+    const isTimeout = fetchError.name === 'AbortError';
+    const errorMessage = isTimeout
+      ? 'Bridge API request timed out after 30 seconds'
+      : (fetchError.message || 'Network error connecting to Bridge API');
+    
+    if (process.env.NODE_ENV === "development") {
+      console.error("❌ Bridge API Network Error:", {
+        error: errorMessage,
+        endpoint: cleanEndpoint.split("?")[0],
+        url: url.replace(SERVER_TOKEN, "***TOKEN***"),
+      });
+    }
+    
+    throw new Error(`Bridge API network error: ${errorMessage}`);
+  }
 
   if (!res.ok) {
     const contentType = res.headers.get("content-type");
