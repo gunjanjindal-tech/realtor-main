@@ -1,30 +1,40 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo } from "react";
 import dynamic from "next/dynamic";
 
-// Google Maps (no SSR) - optimized loading
+// Google Maps (no SSR) - optimized loading with eager loading
 const MapClient = dynamic(
   () => import("./PropertyListingsMapGoogle"),
   {
     ssr: false,
-    // Optimize: minimal loading state
-    loading: () => null,
+    loading: () => null, // No loading spinner - faster perceived load
+    // Load map only when needed (when viewMode is map or split)
   }
 );
 
-export default function PropertyListingsMap({ listings = [], onBoundsChange }) {
-  const [mounted, setMounted] = useState(false);
-
-  // Filter listings with valid coordinates from Bridge API
+export default function PropertyListingsMap({ listings = [], onBoundsChange, searchQuery, hasSearchResults = false, onMapClick }) {
+  // Filter listings with valid coordinates from Bridge API - optimized
   const validListings = useMemo(() => {
-    return listings.filter(
-      (listing) => {
-        const lat = listing.Latitude || listing.LatitudeDecimal;
-        const lng = listing.Longitude || listing.LongitudeDecimal;
-        return lat && lng && !isNaN(parseFloat(lat)) && !isNaN(parseFloat(lng));
+    if (listings.length === 0) return [];
+
+    const filtered = [];
+    for (let i = 0; i < listings.length; i++) {
+      const listing = listings[i];
+      const lat = listing.Latitude || listing.LatitudeDecimal;
+      const lng = listing.Longitude || listing.LongitudeDecimal;
+      if (lat && lng) {
+        const latNum = parseFloat(lat);
+        const lngNum = parseFloat(lng);
+        if (!isNaN(latNum) && !isNaN(lngNum) &&
+          latNum >= -90 && latNum <= 90 &&
+          lngNum >= -180 && lngNum <= 180) {
+          filtered.push(listing);
+        }
       }
-    );
+    }
+
+    return filtered;
   }, [listings]);
 
   // Calculate center point and bounds from all Bridge API coordinates
@@ -38,7 +48,7 @@ export default function PropertyListingsMap({ listings = [], onBoundsChange }) {
     let maxLat = -Infinity;
     let minLng = Infinity;
     let maxLng = -Infinity;
-    
+
     validListings.forEach((listing) => {
       const lat = parseFloat(listing.Latitude || listing.LatitudeDecimal);
       const lng = parseFloat(listing.Longitude || listing.LongitudeDecimal);
@@ -66,44 +76,42 @@ export default function PropertyListingsMap({ listings = [], onBoundsChange }) {
     };
   }, [validListings]);
 
-  // Ensure component only renders on client
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      setMounted(true);
-    }
-  }, []);
-
-  if (!mounted) {
-    return (
-      <div className="h-full w-full flex items-center justify-center bg-gray-100" style={{ minHeight: '400px' }}>
-        <div className="text-center">
-          <p className="text-gray-500 mb-2">Loading map...</p>
-          <div className="w-8 h-8 border-4 border-[#091d35] border-t-transparent rounded-full animate-spin mx-auto"></div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div 
-      className="h-full w-full relative bg-gray-100" 
-      style={{ 
-        minHeight: '400px', 
+    <div
+      className="h-full w-full relative bg-gray-100"
+      style={{
+        minHeight: '400px',
         height: '100%',
         width: '100%',
         position: 'relative',
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
-        touchAction: 'none' // Prevent scrolling on map container
+        touchAction: 'pan-y pinch-zoom' // Allow map gestures on mobile
       }}
       suppressHydrationWarning
     >
       {validListings.length === 0 ? (
         <div className="h-full w-full flex items-center justify-center">
           <div className="text-center">
-            <p className="text-gray-500 mb-2">No properties with location data</p>
-            <p className="text-sm text-gray-400">Map will appear when properties are available</p>
+            {listings.length === 0 ? (
+              <>
+                <p className="text-gray-500 mb-2">Loading properties...</p>
+                <div className="w-8 h-8 border-4 border-[#091d35] border-t-transparent rounded-full animate-spin mx-auto mt-4"></div>
+              </>
+            ) : (
+              <>
+                <p className="text-gray-500 mb-2">No properties with location data</p>
+                <p className="text-sm text-gray-400">
+                  {listings.length} properties found, but none have coordinates
+                </p>
+                {process.env.NODE_ENV === "development" && (
+                  <p className="text-xs text-gray-400 mt-2">
+                    Check API response for Latitude/Longitude fields
+                  </p>
+                )}
+              </>
+            )}
           </div>
         </div>
       ) : (
@@ -111,6 +119,9 @@ export default function PropertyListingsMap({ listings = [], onBoundsChange }) {
           listings={validListings}
           mapCenter={mapCenter}
           onBoundsChange={onBoundsChange}
+          searchQuery={searchQuery}
+          hasSearchResults={hasSearchResults}
+          onMapClick={onMapClick}
         />
       )}
     </div>

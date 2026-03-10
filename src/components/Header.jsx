@@ -59,7 +59,7 @@ export default function Header() {
               onSubmit={(e) => {
                 e.preventDefault();
                 if (searchQuery.trim()) {
-                  router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+                  router.push(`/listings?q=${encodeURIComponent(searchQuery.trim())}`);
                   setSearchQuery(""); // Clear search bar after search
                 }
               }}

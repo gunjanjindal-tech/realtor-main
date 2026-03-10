@@ -7,6 +7,7 @@ import Breadcrumbs from "@/components/common/Breadcrumbs";
 import ListingsToolbar from "@/components/buy/ListingsToolbar";
 import MobileFilters from "@/components/buy/MobileFilters";
 import FeaturedProperties from "@/components/new-development/FeaturedProperties";
+import NewDevelopmentCityMap from "@/components/new-development/NewDevelopmentCityMap";
 
 export default function NewDevelopmentCityPage() {
   const params = useParams();
@@ -92,10 +93,14 @@ export default function NewDevelopmentCityPage() {
         </div>
       </section>
 
+      {/* MAP WITH ALL PROPERTIES */}
+      <NewDevelopmentCityMap city={city} filters={filters} />
+
       <MobileFilters
         open={filtersOpen}
         onClose={() => setFiltersOpen(false)}
         onApplyFilters={handleApplyFilters}
+        initialFilters={filters}
       />
     </>
   );

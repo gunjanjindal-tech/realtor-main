@@ -11,10 +11,10 @@ export async function GET(req) {
   const skip = (page - 1) * limit;
 
   // Build OData $filter query
-  // Using 'eq' for exact matches (more efficient) and 'contains' for partial matches
+  // Sell API should fetch SOLD properties (not active)
   const filterParts = [
     "PropertyType eq 'Residential'",
-    "StandardStatus eq 'Active'"
+    "(StandardStatus eq 'Sold' or StandardStatus eq 'Closed' or StandardStatus eq 'Pending')"
   ];
 
   if (city) {
@@ -24,11 +24,14 @@ export async function GET(req) {
 
   const filterQuery = filterParts.join(" and ");
   
+  // Bridge API has a maximum $top value of 200
+  const topLimit = Math.min(limit, 200);
+  
   // Try Listings first, fallback to Properties if needed
   // Use OData syntax: $top, $skip, $filter
   // Note: $expand=Media is not supported, will fetch media separately if needed
   // OData standard response uses 'value' array
-  let endpoint = `/${DATASET_ID}/Listings?$top=${limit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}`;
+  let endpoint = `/${DATASET_ID}/Listings?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}`;
 
   try {
     // Suppress verbose logging
@@ -46,7 +49,7 @@ export async function GET(req) {
         // if (process.env.NODE_ENV === "development") {
         //   console.log("⚠️ [SELL] Listings endpoint failed, trying Properties...");
         // }
-        endpoint = `/${DATASET_ID}/Properties?$top=${limit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}`;
+        endpoint = `/${DATASET_ID}/Properties?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}`;
         data = await bridgeFetch(endpoint);
       } else {
         throw listingsError;
@@ -81,6 +84,14 @@ export async function GET(req) {
       // SQ FT
       BuildingAreaTotal: item.BuildingAreaTotal,
       LivingArea: item.LivingArea,
+
+      // Status for map color coding
+      StandardStatus: item.StandardStatus || item.Status || "Sold",
+      Status: item.Status || item.StandardStatus || "Sold",
+
+      // Coordinates for map
+      Latitude: item.Latitude || item.LatitudeDecimal,
+      Longitude: item.Longitude || item.LongitudeDecimal,
 
       // Image - Media might be in different fields or need separate API call
       Image:

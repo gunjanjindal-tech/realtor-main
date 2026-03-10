@@ -9,6 +9,7 @@ export default function FeaturedProperties({ city, filters = {} }) {
   const [page, setPage] = useState(1);
   const [listings, setListings] = useState([]);
   const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
 
 const [limit, setLimit] = useState(9);
 
@@ -48,6 +49,7 @@ useEffect(() => {
 /* -------- FETCH LISTINGS -------- */
 useEffect(() => {
   async function fetchListings() {
+    setLoading(true);
     try {
       const params = new URLSearchParams({
         page: page.toString(),
@@ -56,16 +58,18 @@ useEffect(() => {
 
       if (city) params.append("city", city);
 
-      if (filters.minPrice) params.append("minPrice", filters.minPrice);
-      if (filters.maxPrice) params.append("maxPrice", filters.maxPrice);
-      if (filters.minBeds) params.append("minBeds", filters.minBeds);
-      if (filters.minBaths) params.append("minBaths", filters.minBaths);
+      // Only append filters if they have values (not empty strings)
+      if (filters.minPrice && filters.minPrice !== "") params.append("minPrice", filters.minPrice);
+      if (filters.maxPrice && filters.maxPrice !== "") params.append("maxPrice", filters.maxPrice);
+      if (filters.minBeds && filters.minBeds !== "") params.append("minBeds", filters.minBeds);
+      if (filters.minBaths && filters.minBaths !== "") params.append("minBaths", filters.minBaths);
 
       const res = await fetch(`/api/bridge/buy?${params}`);
 
       if (!res.ok) {
         setListings([]);
         setTotal(0);
+        setLoading(false);
         return;
       }
 
@@ -79,6 +83,8 @@ useEffect(() => {
       }
       setListings([]);
       setTotal(0);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -124,8 +130,14 @@ return (
       </div>
 
       {/* LISTINGS */}
-      {listings.length === 0 ? (
-        <p className="text-center py-20 text-gray-500">Loading featured properties...</p>
+      {loading ? (
+        <p className="text-center py-20 text-gray-500">Loading properties...</p>
+      ) : listings.length === 0 ? (
+        <p className="text-center py-20 text-gray-500">
+          {filters.minPrice || filters.maxPrice || filters.minBeds || filters.minBaths
+            ? "No properties found matching your filters. Try adjusting your search criteria."
+            : "No properties found."}
+        </p>
       ) : (
         <>
           {/* MOBILE: horizontal scroll */}

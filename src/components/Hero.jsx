@@ -10,7 +10,7 @@ export default function Hero() {
   const handleSearch = (e) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+      router.push(`/listings?q=${encodeURIComponent(searchQuery.trim())}`);
       setSearchQuery(""); // Clear search bar after search
     }
   };
@@ -33,11 +33,7 @@ export default function Hero() {
 
       {/* Content */}
       <div
-        className="
-          relative z-10 flex min-h-[100svh] flex-col items-center justify-center
-          px-6 pt-[env(safe-area-inset-top)]
-          text-center text-white
-        "
+        className="relative z-10 flex min-h-[100svh] flex-col items-center justify-center px-6 pt-[env(safe-area-inset-top)] text-center text-white"
       >
         {/* Heading */}
         <div className="relative mt-16 sm:mt-20 md:mt-0 animate-slide-right-luxury">

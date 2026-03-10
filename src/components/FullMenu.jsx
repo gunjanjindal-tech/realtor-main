@@ -82,7 +82,7 @@ export default function FullMenu({ close }) {
                   </Link>
 
                   <Link
-                    href="/buy"
+                    href="/listings"
                     onClick={close}
                     className="flex items-center gap-2 rounded-full bg-white px-5 py-2 text-sm font-semibold text-[#071C34]"
                   >
@@ -238,7 +238,7 @@ export default function FullMenu({ close }) {
                 </Link>
 
                 <Link
-                  href="/buy"
+                  href="/listings"
                   onClick={close}
                   className="flex flex-col items-center justify-center py-3 
                   text-red-400 active:scale-95 transition"

@@ -15,20 +15,23 @@ const LISTINGS_LIMIT = 200;
 export default function PropertyListingsView() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const listingType = searchParams?.get("type") === "rent" ? "rent" : "sale";
+  // Get listing type from URL, default to "sale"
+  const listingType = (searchParams?.get("type") || "sale") === "rent" ? "rent" : "sale";
 
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
-  // Default view: "list" for mobile, "split" for desktop
-  const [viewMode, setViewMode] = useState(() => {
-    if (typeof window !== "undefined") {
-      return window.innerWidth < 768 ? "list" : "split";
-    }
-    return "split";
-  });
+  const [isRelatedResults, setIsRelatedResults] = useState(false);
+  // Separate state for map - fetch ALL properties for map display
+  const [allMapListings, setAllMapListings] = useState([]);
+  const [mapLoading, setMapLoading] = useState(true);
+  // Nearby fallback listings (when search returns 0 results): show properties near searched location
+  const [nearbyListings, setNearbyListings] = useState([]);
+  // Default view: "split" for server render (consistent), will be updated on client
+  const [viewMode, setViewMode] = useState("split");
+  const [isMounted, setIsMounted] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchInputValue, setSearchInputValue] = useState(""); // Separate state for input display
   const [mapBounds, setMapBounds] = useState(null); // { north, south, east, west } - filter list by visible map area
@@ -42,6 +45,19 @@ export default function PropertyListingsView() {
 
   const limit = LISTINGS_LIMIT;
   const fetchIdRef = useRef(0);
+  const mapFetchIdRef = useRef(0);
+  const nearbyFetchIdRef = useRef(0);
+  const lastNearbyKeyRef = useRef("");
+
+  const hasSearchQuery = searchQuery && searchQuery.trim().length > 0;
+  const hasSearchResults = hasSearchQuery && listings.length > 0;
+
+  // Clear search on mount - don't read from URL
+  useEffect(() => {
+    // Always clear search on page load/refresh
+    setSearchQuery("");
+    setSearchInputValue("");
+  }, []);
 
   useEffect(() => {
     const currentFetchId = ++fetchIdRef.current;
@@ -76,6 +92,7 @@ export default function PropertyListingsView() {
 
           setListings(data.listings || []);
           setTotal(data.total || 0);
+          setIsRelatedResults(data.isRelated || false);
         } else {
           if (filters.minPrice) params.append("minPrice", filters.minPrice);
           if (filters.maxPrice) params.append("maxPrice", filters.maxPrice);
@@ -94,6 +111,7 @@ export default function PropertyListingsView() {
 
           setListings(data.listings || []);
           setTotal(data.total || 0);
+          setIsRelatedResults(false); // Not a search, so not related results
         }
       } catch (err) {
         if (currentFetchId !== fetchIdRef.current) return;
@@ -109,52 +127,388 @@ export default function PropertyListingsView() {
     fetchListings();
   }, [page, limit, listingType, searchQuery, filters.minPrice, filters.maxPrice, filters.minBeds, filters.minBaths]);
 
-  // Set default view mode based on screen size on mount (mobile: list, desktop: split)
+  // Fetch ALL properties for map (not paginated) - separate from list view
   useEffect(() => {
+    const currentMapFetchId = ++mapFetchIdRef.current;
+
+    async function fetchAllMapListings() {
+      setMapLoading(true);
+      
+      try {
+        const params = new URLSearchParams();
+        // Bridge API max is 200 per request - fetch first page to get total
+        params.append("limit", "200");
+        params.append("page", "1");
+        
+        // Include search query if present
+        if (searchQuery && searchQuery.trim().length > 0) {
+          params.append("q", searchQuery.trim());
+        }
+        
+        if (filters.minPrice) params.append("minPrice", filters.minPrice);
+        if (filters.maxPrice) params.append("maxPrice", filters.maxPrice);
+        if (filters.minBeds) params.append("minBeds", filters.minBeds);
+        if (filters.minBaths) params.append("minBaths", filters.minBaths);
+
+        // Use search API if there's a query, otherwise use buy/rent API
+        const apiUrl = (searchQuery && searchQuery.trim().length > 0) 
+          ? "/api/bridge/search" 
+          : (listingType === "rent" ? "/api/bridge/rent" : "/api/bridge/buy");
+        
+        if (process.env.NODE_ENV === "development") {
+          console.log("🗺️ Fetching map listings from:", apiUrl);
+        }
+        
+        // Fetch first page to get total count
+        const response = await fetch(`${apiUrl}?${params}`);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+
+        if (currentMapFetchId !== mapFetchIdRef.current) return;
+
+        if (data.error) {
+          console.error("❌ Error fetching map listings:", data.error);
+          // Don't set to empty - keep existing listings as fallback
+          if (allMapListings.length === 0) {
+            setAllMapListings([]);
+          }
+        } else {
+          let fetchedListings = data.listings || [];
+          const totalProperties = data.total || 0;
+          
+          if (process.env.NODE_ENV === "development") {
+            console.log("✅ Map listings first page:", {
+              count: fetchedListings.length,
+              total: totalProperties,
+            });
+          }
+          
+          // Calculate total pages needed (200 per page)
+          // Limit to first 5 pages (1000 properties) for faster initial load
+          const totalPages = Math.min(Math.ceil(totalProperties / 200), 5);
+          
+          // Fetch remaining pages in parallel for faster loading (limited to 5 pages)
+          if (totalPages > 1) {
+            const pagePromises = [];
+            
+            // Create promises for remaining pages (2, 3, 4, ... up to 10)
+            for (let page = 2; page <= totalPages; page++) {
+              const pageParams = new URLSearchParams(params);
+              pageParams.set("page", page.toString());
+              
+              pagePromises.push(
+                fetch(`${apiUrl}?${pageParams}`)
+                  .then(res => res.ok ? res.json() : null)
+                  .then(pageData => pageData?.listings || [])
+                  .catch(err => {
+                    console.warn(`Failed to fetch page ${page} for map:`, err);
+                    return [];
+                  })
+              );
+            }
+
+            // Wait for all pages to fetch in parallel
+            const additionalListingsArrays = await Promise.all(pagePromises);
+            
+            // Flatten all results into single array
+            const additionalListings = additionalListingsArrays.flat();
+            fetchedListings = [...fetchedListings, ...additionalListings];
+            
+            if (process.env.NODE_ENV === "development") {
+              console.log("✅ Map listings all pages fetched:", {
+                totalFetched: fetchedListings.length,
+                pagesFetched: totalPages,
+              });
+            }
+          }
+          
+          let allFetchedListings = fetchedListings;
+
+          // Also fetch sold properties from sell API (only if not searching)
+          if (!searchQuery || searchQuery.trim().length === 0) {
+            try {
+              const sellParams = new URLSearchParams({
+                page: "1",
+                limit: "200", // Bridge API max is 200
+              });
+              
+              const sellResponse = await fetch(`/api/bridge/sell?${sellParams}`);
+              if (sellResponse.ok) {
+                const sellData = await sellResponse.json();
+                let sellListings = sellData.listings || [];
+                const sellTotal = sellData.total || 0;
+                
+                // Fetch remaining pages if needed (limit to 3 pages for performance)
+                if (sellTotal > 200) {
+                  const sellTotalPages = Math.min(Math.ceil(sellTotal / 200), 3);
+                  const sellPagePromises = [];
+                  
+                  for (let p = 2; p <= sellTotalPages; p++) {
+                    const pageParams = new URLSearchParams(sellParams);
+                    pageParams.set("page", p.toString());
+                    
+                    sellPagePromises.push(
+                      fetch(`/api/bridge/sell?${pageParams}`)
+                        .then(res => res.ok ? res.json() : null)
+                        .then(pageData => pageData?.listings || [])
+                        .catch(() => [])
+                    );
+                  }
+                  
+                  const additionalSellListings = await Promise.all(sellPagePromises);
+                  sellListings = [...sellListings, ...additionalSellListings.flat()];
+                }
+                
+                // Mark as from sell API
+                const markedSold = sellListings.map(l => ({
+                  ...l,
+                  StandardStatus: l.StandardStatus || "Sold",
+                  Status: l.Status || "Sold",
+                  isFromSellAPI: true
+                }));
+                
+                allFetchedListings = [...allFetchedListings, ...markedSold];
+                
+                if (process.env.NODE_ENV === "development") {
+                  console.log("✅ Sold properties from sell API:", markedSold.length);
+                }
+              }
+            } catch (err) {
+              console.warn("⚠️ Could not fetch sold properties from sell API:", err);
+            }
+          }
+          
+          if (currentMapFetchId === mapFetchIdRef.current) {
+            setAllMapListings(allFetchedListings);
+            if (process.env.NODE_ENV === "development") {
+              console.log("✅ Total map listings (including sold):", allFetchedListings.length);
+            }
+          }
+        }
+      } catch (err) {
+        if (currentMapFetchId === mapFetchIdRef.current) {
+          console.error("❌ Error fetching all map listings:", err);
+          // Don't clear existing listings on error - keep them as fallback
+          if (allMapListings.length === 0) {
+            setAllMapListings([]);
+          }
+        }
+      } finally {
+        if (currentMapFetchId === mapFetchIdRef.current) {
+          setMapLoading(false);
+        }
+      }
+    }
+
+    fetchAllMapListings();
+  }, [listingType, searchQuery, filters.minPrice, filters.maxPrice, filters.minBeds, filters.minBaths]);
+
+  // If search returns 0 results, fetch nearby properties in the current map bounds (after geocode centers the map)
+  useEffect(() => {
+    if (!hasSearchQuery || hasSearchResults) {
+      if (nearbyListings.length > 0) setNearbyListings([]);
+      lastNearbyKeyRef.current = "";
+      return;
+    }
+    if (!mapBounds) return;
+
+    const { north, south, east, west } = mapBounds;
+    const key = [
+      listingType,
+      searchQuery.trim().toLowerCase(),
+      north.toFixed(3),
+      south.toFixed(3),
+      east.toFixed(3),
+      west.toFixed(3),
+      filters.minPrice || "",
+      filters.maxPrice || "",
+      filters.minBeds || "",
+      filters.minBaths || "",
+    ].join("|");
+
+    if (key === lastNearbyKeyRef.current) return;
+    lastNearbyKeyRef.current = key;
+
+    const currentNearbyFetchId = ++nearbyFetchIdRef.current;
+
+    async function fetchNearby() {
+      try {
+        const params = new URLSearchParams({
+          type: listingType,
+          page: "1",
+          limit: "200",
+          north: String(north),
+          south: String(south),
+          east: String(east),
+          west: String(west),
+        });
+
+        if (filters.minPrice) params.append("minPrice", filters.minPrice);
+        if (filters.maxPrice) params.append("maxPrice", filters.maxPrice);
+        if (filters.minBeds) params.append("minBeds", filters.minBeds);
+        if (filters.minBaths) params.append("minBaths", filters.minBaths);
+
+        const res1 = await fetch(`/api/bridge/nearby?${params}`);
+        const data1 = await res1.json();
+        if (currentNearbyFetchId !== nearbyFetchIdRef.current) return;
+
+        if (!res1.ok || data1?.error) {
+          throw new Error(data1?.error || `Nearby fetch failed (${res1.status})`);
+        }
+
+        let combined = data1.listings || [];
+        const totalNearby = Number(data1.total || combined.length);
+
+        // Fetch one more page for better coverage (max ~400 markers)
+        const totalPages = Math.min(Math.ceil(totalNearby / 200), 2);
+        if (totalPages > 1) {
+          const p2 = new URLSearchParams(params);
+          p2.set("page", "2");
+          const res2 = await fetch(`/api/bridge/nearby?${p2}`);
+          const data2 = await res2.json();
+          if (currentNearbyFetchId !== nearbyFetchIdRef.current) return;
+          if (res2.ok && !data2?.error) {
+            combined = [...combined, ...(data2.listings || [])];
+          }
+        }
+
+        // De-dupe
+        const seen = new Set();
+        const deduped = [];
+        for (const l of combined) {
+          const id = l.ListingId || l.Id;
+          const keyId =
+            id != null
+              ? String(id)
+              : `${l.Latitude || ""},${l.Longitude || ""},${l.UnparsedAddress || ""}`;
+          if (seen.has(keyId)) continue;
+          seen.add(keyId);
+          deduped.push(l);
+        }
+
+        if (currentNearbyFetchId === nearbyFetchIdRef.current) {
+          setNearbyListings(deduped);
+        }
+      } catch (e) {
+        if (currentNearbyFetchId === nearbyFetchIdRef.current) {
+          setNearbyListings([]);
+        }
+      }
+    }
+
+    fetchNearby();
+  }, [
+    hasSearchQuery,
+    hasSearchResults,
+    mapBounds,
+    listingType,
+    searchQuery,
+    filters.minPrice,
+    filters.maxPrice,
+    filters.minBeds,
+    filters.minBaths,
+    nearbyListings.length,
+  ]);
+
+  // Set default view mode based on screen size on mount (mobile: list, desktop: split)
+  // This runs only on client to avoid hydration mismatch
+  useEffect(() => {
+    setIsMounted(true);
     if (typeof window !== "undefined") {
       const isMobile = window.innerWidth < 768;
-      if (isMobile && viewMode === "split") {
-        setViewMode("list");
-      }
+      setViewMode(isMobile ? "list" : "split");
     }
   }, []);
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
   const hasPagination = totalPages > 1;
 
+  // Real-time search as user types (debounced) - don't persist in URL
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      const trimmedValue = searchInputValue.trim();
+      if (trimmedValue !== searchQuery) {
+        setSearchQuery(trimmedValue);
+        setPage(1);
+        // Don't update URL - let it clear on refresh/back
+      }
+    }, 150); // 150ms debounce - faster response
+
+    return () => clearTimeout(timeoutId);
+  }, [searchInputValue, searchQuery]);
+
   function handleSearch(e) {
     e.preventDefault();
-    // Set the search query from input value (empty string clears search)
+    // Immediate search on Enter/Submit
     const trimmedValue = searchInputValue.trim();
     setSearchQuery(trimmedValue);
-    // Reset to page 1 when searching
     setPage(1);
-    // Clear input after search is submitted
-    setSearchInputValue("");
+    // Don't persist in URL - will clear on refresh/back
   }
 
-  // Listings with valid coordinates for map
-  const mapListings = useMemo(
-    () =>
-      listings.filter(
-        (listing) =>
-          (listing.Latitude || listing.LatitudeDecimal) &&
-          (listing.Longitude || listing.LongitudeDecimal)
-      ),
-    [listings]
-  );
+  // Listings with valid coordinates for map - prioritize search results (exact or related), then allMapListings
+  const mapListings = useMemo(() => {
+    // Source selection:
+    // - If search returned properties (exact/related): use `listings`
+    // - If search returned 0: use `nearbyListings` (bounds-based) fallback; else fall back to `allMapListings`
+    // - If not searching: use `allMapListings` for full map view
+    const sourceListings = hasSearchResults
+      ? listings
+      : hasSearchQuery
+        ? (nearbyListings.length > 0
+          ? nearbyListings
+          : (allMapListings.length > 0 ? allMapListings : []))
+        : (allMapListings.length > 0 ? allMapListings : listings);
+    
+    const filtered = sourceListings.filter(
+      (listing) => {
+        const lat = listing.Latitude || listing.LatitudeDecimal;
+        const lng = listing.Longitude || listing.LongitudeDecimal;
+        return lat && lng && !isNaN(parseFloat(lat)) && !isNaN(parseFloat(lng));
+      }
+    );
+    
+    // Debug: Log when search is active to verify related properties are being passed
+    if (process.env.NODE_ENV === "development" && hasSearchQuery) {
+      console.log("🗺️ Map Listings for Search:", {
+        searchQuery,
+        isRelatedResults,
+        totalListings: listings.length,
+        listingsWithCoords: filtered.length,
+        source: hasSearchResults ? "listings (search results)" : (nearbyListings.length > 0 ? "nearbyListings (bounds fallback)" : "allMapListings (fallback)")
+      });
+    }
+    
+    return filtered;
+  }, [allMapListings, listings, hasSearchQuery, hasSearchResults, nearbyListings, searchQuery, isRelatedResults]);
 
   // When map is zoomed/panned: show listings in visible area + buffer so bagal (nearby) properties stay visible
+  // Use allMapListings if available (for map filtering), otherwise use current page listings
   const displayedListings = useMemo(() => {
-    if (!mapBounds) return listings;
+    if (!mapBounds) {
+      if (hasSearchQuery && !hasSearchResults && nearbyListings.length > 0) return nearbyListings;
+      return listings;
+    }
+    
+    // When search returned 0 results, prefer nearbyListings (already bounds-based).
+    // Otherwise use allMapListings for accurate "visible on map" filtering.
+    const sourceListings =
+      hasSearchQuery && !hasSearchResults && nearbyListings.length > 0
+        ? nearbyListings
+        : (allMapListings.length > 0 ? allMapListings : listings);
+    
     const { north, south, east, west } = mapBounds;
-    return listings.filter((listing) => {
+    return sourceListings.filter((listing) => {
       const lat = parseFloat(listing.Latitude || listing.LatitudeDecimal);
       const lng = parseFloat(listing.Longitude || listing.LongitudeDecimal);
       if (isNaN(lat) || isNaN(lng)) return false;
       return lat >= south && lat <= north && lng >= west && lng <= east;
     });
-  }, [listings, mapBounds]);
+  }, [listings, allMapListings, nearbyListings, mapBounds, hasSearchQuery, hasSearchResults]);
 
   return (
   <div className="bg-[#0B1F3A] min-h-screen" style={{ paddingTop: '22px', overflow: 'hidden', height: '100vh' }}>
@@ -308,19 +662,19 @@ export default function PropertyListingsView() {
             <div className="flex border border-gray-300 rounded-lg p-1">
               <button
                 onClick={() => setViewMode("list")}
-                className={`toolbar-toggle ${viewMode === "list" && "active"}`}
+                className={`toolbar-toggle ${viewMode === "list" ? "active" : ""}`}
               >
                 <ListIcon className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setViewMode("split")}
-                className={`toolbar-toggle ${viewMode === "split" && "active"}`}
+                className={`toolbar-toggle ${viewMode === "split" ? "active" : ""}`}
               >
                 <LayoutGrid className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setViewMode("map")}
-                className={`toolbar-toggle ${viewMode === "map" && "active"}`}
+                className={`toolbar-toggle ${viewMode === "map" ? "active" : ""}`}
               >
                 <Map className="w-4 h-4" />
               </button>
@@ -343,13 +697,13 @@ export default function PropertyListingsView() {
               <div className="flex border border-gray-300 rounded-lg p-1 ml-auto">
                 <button
                   onClick={() => setViewMode("list")}
-                  className={`toolbar-toggle ${viewMode === "list" && "active"}`}
+                  className={`toolbar-toggle ${viewMode === "list" ? "active" : ""}`}
                 >
                   <ListIcon className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => setViewMode("map")}
-                  className={`toolbar-toggle ${viewMode === "map" && "active"}`}
+                  className={`toolbar-toggle ${viewMode === "map" ? "active" : ""}`}
                 >
                   <Map className="w-4 h-4" />
                 </button>
@@ -486,7 +840,12 @@ export default function PropertyListingsView() {
       {/* MAIN CONTENT */}
      <div 
   className="max-w-[1600px] mx-auto bg-white flex flex-col"
-style={{ height: 'calc(100vh - 100px)', overflow: 'hidden' }}>
+style={{ 
+  height: isMounted && typeof window !== 'undefined' && window.innerWidth < 768 
+    ? 'calc(100vh - 180px)' // Mobile: account for header + filters
+    : 'calc(100vh - 100px)', // Desktop (default for SSR)
+  overflow: 'hidden' 
+}}>
         {/* Title only – no property count, no "Showing X of Y" text */}
         <div className="px-6 py-4 flex-shrink-0">
           <h1 className="text-2xl font-bold text-[#091D35]">
@@ -506,10 +865,17 @@ style={{ height: 'calc(100vh - 100px)', overflow: 'hidden' }}>
                   <div className="text-center py-12 text-red-600">{error}</div>
                 ) : displayedListings.length === 0 ? (
                   <div className="text-center py-12 text-gray-500">
-                    {mapBounds ? "No properties in this map area. Zoom out or pan." : "No properties found"}
+                    {mapBounds ? "No properties in this map area. Zoom out or pan." : (isRelatedResults ? "No exact matches found. Showing related properties:" : "No properties found")}
                   </div>
                 ) : (
                   <>
+                    {isRelatedResults && (
+                      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p className="text-sm text-blue-800">
+                          <strong>No exact matches found.</strong> Showing related properties based on your search.
+                        </p>
+                      </div>
+                    )}
                     <div className="grid grid-cols-2 gap-4">
                       {displayedListings.map((listing, index) => (
                         <PropertyCard
@@ -566,6 +932,14 @@ style={{ height: 'calc(100vh - 100px)', overflow: 'hidden' }}>
               <PropertyListingsMap
                 listings={mapListings}
                 onBoundsChange={setMapBounds}
+                searchQuery={searchQuery}
+                hasSearchResults={hasSearchResults}
+                onMapClick={(locationName) => {
+                  // Update search when map is clicked
+                  setSearchInputValue(locationName);
+                  setSearchQuery(locationName);
+                  setPage(1);
+                }}
               />
             </div>
           </div>
@@ -580,10 +954,31 @@ style={{ height: 'calc(100vh - 100px)', overflow: 'hidden' }}>
               <div className="text-center py-12 text-red-600">{error}</div>
             ) : listings.length === 0 ? (
               <div className="text-center py-12 text-gray-500">
-                Loading properties...
+                {searchQuery && searchQuery.trim().length > 0 ? (
+                  isRelatedResults ? (
+                    <div>
+                      <p className="mb-2">No exact matches found for "{searchQuery}".</p>
+                      <p className="text-sm">Try a different search term or browse all properties.</p>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="mb-2">No properties found for "{searchQuery}".</p>
+                      <p className="text-sm">Try adjusting your search or filters.</p>
+                    </div>
+                  )
+                ) : (
+                  "No properties found. Try adjusting your filters."
+                )}
               </div>
             ) : (
               <>
+                {isRelatedResults && (
+                  <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm text-blue-800">
+                      <strong>No exact matches found.</strong> Showing related properties based on your search.
+                    </p>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {listings.map((listing) => (
                     <PropertyCard key={listing.ListingId || listing.Id} listing={listing} listingType={listingType} />
@@ -619,11 +1014,28 @@ style={{ height: 'calc(100vh - 100px)', overflow: 'hidden' }}>
 
         {/* Map Only View - Available on all devices */}
         {viewMode === "map" && (
-          <div className="flex-1 min-h-0 px-6 pb-4">
-            <div className="h-full w-full min-h-[500px]">
+          <div className="flex-1 min-h-0" style={{ height: '100%', width: '100%', position: 'relative' }}>
+            <div 
+              className="h-full w-full" 
+              style={{ 
+                height: '100%', 
+                width: '100%', 
+                minHeight: '400px',
+                position: 'relative',
+                overflow: 'hidden'
+              }}
+            >
               <PropertyListingsMap
                 listings={mapListings}
                 onBoundsChange={setMapBounds}
+                searchQuery={searchQuery}
+                hasSearchResults={hasSearchResults}
+                onMapClick={(locationName) => {
+                  // Update search when map is clicked
+                  setSearchInputValue(locationName);
+                  setSearchQuery(locationName);
+                  setPage(1);
+                }}
               />
             </div>
           </div>
