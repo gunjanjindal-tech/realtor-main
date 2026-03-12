@@ -56,36 +56,15 @@ export default function FeaturedProperties({ city, filters = {}, searchQuery = "
           limit: limit.toString(),
         });
 
-        const hasSearchQuery = searchQuery && searchQuery.trim().length > 0;
-
-        if (hasSearchQuery) {
-          // Use search API when search query is provided
-          params.append("q", searchQuery.trim());
-          if (filters.minPrice && filters.minPrice !== "") params.append("minPrice", filters.minPrice);
-          if (filters.maxPrice && filters.maxPrice !== "") params.append("maxPrice", filters.maxPrice);
-          if (filters.minBeds && filters.minBeds !== "") params.append("minBeds", filters.minBeds);
-          if (filters.minBaths && filters.minBaths !== "") params.append("minBaths", filters.minBaths);
-
-          const res = await fetch(`/api/bridge/search?${params}`);
-
-          if (!res.ok) {
-            setListings([]);
-            setTotal(0);
-            setLoading(false);
-            return;
-          }
-
-          const data = await res.json();
-          setListings(data.listings || []);
-          setTotal(data.total || 0);
-          setLoading(false);
-          return;
-        }
-
-        // Use buy API when no search query (normal city listing)
+        // Always use buy API for city context, but include search query if present
         if (city) params.append("city", city);
 
-        // Only append filters if they have values (not empty strings)
+        const hasSearchQuery = searchQuery && searchQuery.trim().length > 0;
+        if (hasSearchQuery) {
+          params.append("q", searchQuery.trim());
+        }
+
+        // Append filters
         if (filters.minPrice && filters.minPrice !== "") params.append("minPrice", filters.minPrice);
         if (filters.maxPrice && filters.maxPrice !== "") params.append("maxPrice", filters.maxPrice);
         if (filters.minBeds && filters.minBeds !== "") params.append("minBeds", filters.minBeds);
