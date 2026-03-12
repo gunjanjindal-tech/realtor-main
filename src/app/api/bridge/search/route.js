@@ -62,7 +62,7 @@ export async function GET(req) {
       });
 
       // Build search conditions - prioritize exact address matches
-      // Strategy: First try exact match, then AND logic (all words must match), then OR logic as fallback
+      // Strategy: First try exact match, then phrase/AND logic, then a flexible OR fallback.
       const escapedQuery = searchTermLower.replace(/'/g, "''");
 
       // Priority 1: Try exact match on UnparsedAddress first (most accurate)
@@ -72,26 +72,33 @@ export async function GET(req) {
       // Priority 2: Try partial exact match (contains full query in UnparsedAddress)
       const partialExactMatch = `contains(tolower(UnparsedAddress),'${escapedQuery}')`;
 
-      // Priority 3: Use OR logic for single word or partial searches (more flexible)
-      // Use AND logic only for multiple words (more precise)
-      // Each word can match in any field (City, UnparsedAddress, or StreetName)
+      // Priority 3: Build word-based conditions.  Special-case street suffixes
+      // (way, st, rd, etc.) so they only match the StreetName field, and use
+      // AND logic whenever a suffix is present or the query has two or more
+      // words to avoid overly broad hits (e.g. "alabaster way" matching any
+      // listing containing "way", like highways).
+      const streetSuffixes = new Set(Object.keys(streetSuffixMap));
+
       const wordConditions = words.map((word) => {
         const escaped = word.replace(/'/g, "''");
-        // Search in multiple fields: City, UnparsedAddress, and StreetName
-        // Use tolower() for case-insensitive search - these are known to work with Bridge API
-        // Only search StreetName if it's not null (to avoid errors)
-        return `(contains(tolower(City),'${escaped}') or contains(tolower(UnparsedAddress),'${escaped}') or (StreetName ne null and contains(tolower(StreetName),'${escaped}')))`;
+        const isSuffix = streetSuffixes.has(word);
+
+        if (isSuffix) {
+          // suffix-only search limited to street name
+          return `(StreetName ne null and contains(tolower(StreetName),'${escaped}'))`;
+        }
+
+        // normal word: search across city, address, or street name
+        return `(contains(tolower(City),'${escaped}') or contains(tolower(UnparsedAddress),'${escaped}') or (StreetName ne null and contains(tolower(StreetName),'${escaped}'))) `;
       });
 
-      // For single word: use OR logic (more flexible, finds partial matches anywhere)
-      // For 2 words: use OR logic (any word can match - flexible for partial searches)
-      // For 3+ words: use AND logic (more precise, all words must match)
-      // IMPORTANT: For single word, we want to find it in ANY field, so OR is correct
-      const wordLogic = words.length === 1
-        ? wordConditions[0]  // Single word: just the condition itself (already searches all fields with OR)
-        : words.length === 2
-          ? wordConditions.join(" or ")  // 2 words: OR logic (any word matches - flexible)
-          : wordConditions.join(" and "); // 3+ words: AND logic (all words must match - precise)
+      // Decide whether to combine words with OR or AND.  Use OR only when the
+      // query is a single term and there are no suffix words; otherwise require
+      // all terms to match (AND).
+      const useOrLogic = words.length === 1 && !words.some(w => streetSuffixes.has(w));
+      const wordLogic = useOrLogic
+        ? wordConditions.join(" or ")
+        : wordConditions.join(" and ");
 
       // Combine: exact match OR partial exact match OR word matching (OR/AND based on word count)
       // This ensures exact addresses are found first, then flexible partial matches
