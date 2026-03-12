@@ -29,6 +29,7 @@ export async function GET(req) {
   const page = Number(searchParams.get("page") || 1);
   const limit = Number(searchParams.get("limit") || 9);
   const city = searchParams.get("city");
+  const query = searchParams.get("q") || searchParams.get("query") || "";
   const minPrice = searchParams.get("minPrice");
   const maxPrice = searchParams.get("maxPrice");
   const minBeds = searchParams.get("minBeds");
@@ -73,6 +74,50 @@ export async function GET(req) {
 
   if (minBaths) {
     filterParts.push(`BathroomsTotalInteger ge ${minBaths}`);
+  }
+
+  // Add search query support (search within city if both city and query provided)
+  if (query && query.trim().length > 0) {
+    const searchTermLower = query.trim().toLowerCase();
+    const words = searchTermLower.split(/\s+/).filter((w) => w.length > 0);
+
+    if (words.length > 0) {
+      const escapedQuery = searchTermLower.replace(/'/g, "''");
+
+      // Priority 1: Try exact match on UnparsedAddress
+      const exactMatchCondition = `tolower(UnparsedAddress) eq '${escapedQuery}'`;
+
+      // Priority 2: Try partial exact match
+      const partialExactMatch = `contains(tolower(UnparsedAddress),'${escapedQuery}')`;
+
+      // Priority 3: Word-based matching
+      const streetSuffixMap = {
+        'street': 'st', 'road': 'rd', 'avenue': 'ave', 'drive': 'dr',
+        'boulevard': 'blvd', 'lane': 'ln', 'court': 'ct', 'circle': 'cir',
+        'place': 'pl', 'way': 'way', 'terrace': 'ter', 'parkway': 'pkwy',
+        'highway': 'hwy',
+      };
+      const streetSuffixes = new Set(Object.keys(streetSuffixMap));
+
+      const wordConditions = words.map((word) => {
+        const escaped = word.replace(/'/g, "''");
+        const isSuffix = streetSuffixes.has(word);
+
+        if (isSuffix) {
+          return `(StreetName ne null and contains(tolower(StreetName),'${escaped}'))`;
+        }
+
+        return `(contains(tolower(City),'${escaped}') or contains(tolower(UnparsedAddress),'${escaped}') or (StreetName ne null and contains(tolower(StreetName),'${escaped}'))) `;
+      });
+
+      const useOrLogic = words.length === 1 && !words.some(w => streetSuffixes.has(w));
+      const wordLogic = useOrLogic
+        ? wordConditions.join(" or ")
+        : wordConditions.join(" and ");
+
+      const searchCondition = `(${exactMatchCondition} or ${partialExactMatch} or (${wordLogic}))`;
+      filterParts.push(searchCondition);
+    }
   }
 
   const filterQuery = filterParts.join(" and ");
