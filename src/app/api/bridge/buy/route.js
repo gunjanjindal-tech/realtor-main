@@ -1,0 +1,255 @@
+// Ensure this route is properly registered by Next.js
+// If you see 404 errors, try:
+// 1. Restart the Next.js dev server
+// 2. Clear .next folder: rm -rf .next (or delete .next folder)
+// 3. Check that BRIDGE_SERVER_TOKEN is set in .env.local
+
+import { bridgeFetch } from "@/lib/bridgeClient";
+import { DATASET_ID } from "@/lib/bridgeConfig";
+
+// Map showcase area names to OData filter so API returns all relevant properties
+const AREA_TO_FILTER = {
+  "Halifax Waterfront": "contains(City, 'Halifax')",
+  "South Shore": "(contains(City, 'Lunenburg') or contains(City, 'Bridgewater') or contains(City, 'Liverpool') or contains(City, 'Chester') or contains(City, 'Mahone') or contains(City, 'Shelburne'))",
+  "Annapolis Valley": "(contains(City, 'Kentville') or contains(City, 'Wolfville') or contains(City, 'Annapolis') or contains(City, 'Berwick') or contains(City, 'Middleton'))",
+  "Cape Breton": "(contains(City, 'Sydney') or contains(City, 'Baddeck') or contains(City, 'Inverness') or contains(City, 'Cape Breton') or contains(City, 'Glace Bay') or contains(City, 'North Sydney'))",
+};
+
+export async function GET(req) {
+  // Handle case where req.url might not be available (shouldn't happen in Next.js 13+)
+  if (!req || !req.url) {
+    return Response.json(
+      { error: "Invalid request object", listings: [], total: 0 },
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  const { searchParams } = new URL(req.url);
+
+  const page = Number(searchParams.get("page") || 1);
+  const limit = Number(searchParams.get("limit") || 9);
+  const city = searchParams.get("city");
+  const query = searchParams.get("q") || searchParams.get("query") || "";
+  const minPrice = searchParams.get("minPrice");
+  const maxPrice = searchParams.get("maxPrice");
+  const minBeds = searchParams.get("minBeds");
+  const minBaths = searchParams.get("minBaths");
+  const includeSold = searchParams.get("includeSold") === "true";
+
+  const skip = (page - 1) * limit;
+
+  // Build OData $filter query
+  const filterParts = [
+    "PropertyType eq 'Residential'"
+  ];
+  
+  // Include sold properties if requested, otherwise only active
+  if (includeSold) {
+    // Include both Active and Sold/Closed properties
+    filterParts.push("(StandardStatus eq 'Active' or StandardStatus eq 'Sold' or StandardStatus eq 'Closed' or StandardStatus eq 'Pending')");
+  } else {
+    filterParts.push("StandardStatus eq 'Active'");
+  }
+
+  if (city) {
+    const areaFilter = AREA_TO_FILTER[city];
+    if (areaFilter) {
+      filterParts.push(areaFilter);
+    } else {
+      filterParts.push(`City eq '${city.replace(/'/g, "''")}'`);
+    }
+  }
+
+  if (minPrice) {
+    filterParts.push(`ListPrice ge ${minPrice}`);
+  }
+
+  if (maxPrice) {
+    filterParts.push(`ListPrice le ${maxPrice}`);
+  }
+
+  if (minBeds) {
+    filterParts.push(`BedroomsTotal ge ${minBeds}`);
+  }
+
+  if (minBaths) {
+    filterParts.push(`BathroomsTotalInteger ge ${minBaths}`);
+  }
+
+  // Add search query support (search within city if both city and query provided)
+  if (query && query.trim().length > 0) {
+    const searchTermLower = query.trim().toLowerCase();
+    const words = searchTermLower.split(/\s+/).filter((w) => w.length > 0);
+
+    if (words.length > 0) {
+      const escapedQuery = searchTermLower.replace(/'/g, "''");
+
+      // Priority 1: Try exact match on UnparsedAddress
+      const exactMatchCondition = `tolower(UnparsedAddress) eq '${escapedQuery}'`;
+
+      // Priority 2: Try partial exact match
+      const partialExactMatch = `contains(tolower(UnparsedAddress),'${escapedQuery}')`;
+
+      // Priority 3: Word-based matching
+      const streetSuffixMap = {
+        'street': 'st', 'road': 'rd', 'avenue': 'ave', 'drive': 'dr',
+        'boulevard': 'blvd', 'lane': 'ln', 'court': 'ct', 'circle': 'cir',
+        'place': 'pl', 'way': 'way', 'terrace': 'ter', 'parkway': 'pkwy',
+        'highway': 'hwy',
+      };
+      const streetSuffixes = new Set(Object.keys(streetSuffixMap));
+
+      const wordConditions = words.map((word) => {
+        const escaped = word.replace(/'/g, "''");
+        const isSuffix = streetSuffixes.has(word);
+
+        if (isSuffix) {
+          return `(StreetName ne null and contains(tolower(StreetName),'${escaped}'))`;
+        }
+
+        return `(contains(tolower(City),'${escaped}') or contains(tolower(UnparsedAddress),'${escaped}') or (StreetName ne null and contains(tolower(StreetName),'${escaped}'))) `;
+      });
+
+      const useOrLogic = words.length === 1 && !words.some(w => streetSuffixes.has(w));
+      const wordLogic = useOrLogic
+        ? wordConditions.join(" or ")
+        : wordConditions.join(" and ");
+
+      const searchCondition = `(${exactMatchCondition} or ${partialExactMatch} or (${wordLogic}))`;
+      filterParts.push(searchCondition);
+    }
+  }
+
+  const filterQuery = filterParts.join(" and ");
+  
+  // Bridge API has a maximum $top value of 200
+  const topLimit = Math.min(limit, 200);
+  
+  // Try Listings first, fallback to Properties if needed
+  // Use OData syntax: $top, $skip, $filter
+  // Note: $expand=Media is not supported, will fetch media separately if needed
+  // OData standard response uses 'value' array, not 'bundle'
+  let endpoint = `/${DATASET_ID}/Listings?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}`;
+
+  try {
+    // Suppress verbose logging
+    // if (process.env.NODE_ENV === "development") {
+    //   console.log("🔍 Fetching from endpoint:", endpoint);
+    // }
+    let data;
+    
+    try {
+      data = await bridgeFetch(endpoint);
+    } catch (listingsError) {
+      // If Listings fails with 404, try Properties endpoint (expected fallback)
+      if (listingsError.message.includes("404") || listingsError.message.includes("Invalid resource")) {
+        // Suppress expected fallback logging
+        // if (process.env.NODE_ENV === "development") {
+        //   console.log("⚠️ Listings endpoint failed, trying Properties...");
+        // }
+        endpoint = `/${DATASET_ID}/Properties?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}`;
+        data = await bridgeFetch(endpoint);
+      } else {
+        throw listingsError;
+      }
+    }
+    if (process.env.NODE_ENV === "development") {
+      console.log("✅ API Response received:", {
+        hasValue: !!data.value,
+        hasBundle: !!data.bundle,
+        valueLength: data.value?.length || 0,
+        bundleLength: data.bundle?.length || 0,
+        odataCount: data["@odata.count"],
+        keys: Object.keys(data),
+      });
+    }
+
+    // OData standard uses 'value' array, but some APIs use 'bundle'
+    // 🔥 SANITIZE RESPONSE (VERY IMPORTANT)
+    const listings = (data.value || data.bundle || []).map((item) => ({
+      ListingId: item.ListingId,
+      Id: item.Id,
+
+      ListPrice: item.ListPrice,
+      City: item.City,
+      Province: item.Province,
+      UnparsedAddress: item.UnparsedAddress,
+
+      BedroomsTotal: item.BedroomsTotal,
+      BathroomsTotalInteger: item.BathroomsTotalInteger,
+
+      // SQ FT
+      BuildingAreaTotal: item.BuildingAreaTotal,
+      LivingArea: item.LivingArea,
+
+      // Status for map color coding (Sold vs Available)
+      StandardStatus: item.StandardStatus || item.Status || "Active",
+      Status: item.Status || item.StandardStatus || "Active",
+
+      // Coordinates for map
+      Latitude: item.Latitude || item.LatitudeDecimal,
+      Longitude: item.Longitude || item.LongitudeDecimal,
+
+      // Image - Media might be in different fields or need separate API call
+      Image:
+        item.Media?.[0]?.MediaURL ||
+        item.Media?.[0]?.MediaURLThumb ||
+        item.Photos?.[0]?.Uri ||
+        item.PhotoUrl ||
+        null,
+    }));
+
+    // OData standard: @odata.count contains total count
+    const total = data["@odata.count"] || data["@count"] || data.total || listings.length;
+
+    return Response.json(
+      {
+        listings,
+        total,
+        rawData: process.env.NODE_ENV === "development" ? {
+          responseKeys: Object.keys(data),
+          sampleItem: data.value?.[0] || data.bundle?.[0] || null,
+        } : undefined,
+      },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+        },
+      }
+    );
+  } catch (err) {
+    const errorMessage = err.message || "Failed to fetch listings";
+    const is404 = errorMessage.includes("404") || errorMessage.includes("Invalid resource");
+    const isAuthError = errorMessage.includes("401") || errorMessage.includes("403");
+    
+    if (process.env.NODE_ENV === "development") {
+      console.error("❌ Buy API Route Error:", {
+        message: errorMessage,
+        status: is404 ? 404 : isAuthError ? 401 : 500,
+        endpoint: endpoint,
+        datasetId: DATASET_ID,
+        stack: err.stack,
+      });
+    }
+    
+    // Always return JSON, even on error
+    return Response.json(
+      { 
+        error: errorMessage,
+        listings: [],
+        total: 0,
+        debug: process.env.NODE_ENV === "development" ? {
+          endpoint,
+          datasetId: DATASET_ID,
+          suggestion: is404 ? "Check if dataset ID or endpoint name is correct. Try /api/bridge/test to verify." : undefined
+        } : undefined
+      }, 
+      { 
+        status: is404 ? 404 : isAuthError ? 401 : 500,
+        headers: {
+          "Content-Type": "application/json",
+        }
+      }
+    );
+  }
+}
