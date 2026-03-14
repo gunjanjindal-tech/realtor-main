@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, memo } from "react";
 import dynamic from "next/dynamic";
 
 // Google Maps (no SSR) - optimized loading with eager loading
@@ -13,7 +13,7 @@ const MapClient = dynamic(
   }
 );
 
-export default function PropertyListingsMap({ listings = [], onBoundsChange, searchQuery, hasSearchResults = false, onMapClick, onZoomChange, listingType = "sale" }) {
+export default memo(function PropertyListingsMap({ listings = [], onBoundsChange, searchQuery, hasSearchResults = false, onMapClick, onZoomChange, listingType = "sale" }) {
   // Filter listings with valid coordinates from Bridge API - optimized
   const validListings = useMemo(() => {
     if (listings.length === 0) return [];
@@ -118,6 +118,7 @@ export default function PropertyListingsMap({ listings = [], onBoundsChange, sea
         <MapClient
           listings={validListings}
           mapCenter={mapCenter}
+          bounds={mapCenter.bounds}
           onBoundsChange={onBoundsChange}
           searchQuery={searchQuery}
           hasSearchResults={hasSearchResults}
@@ -128,4 +129,4 @@ export default function PropertyListingsMap({ listings = [], onBoundsChange, sea
       )}
     </div>
   );
-}
+});

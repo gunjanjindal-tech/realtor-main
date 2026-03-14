@@ -35,6 +35,10 @@ export async function GET(req) {
   const minBeds = searchParams.get("minBeds");
   const minBaths = searchParams.get("minBaths");
   const includeSold = searchParams.get("includeSold") === "true";
+  const north = searchParams.get("north");
+  const south = searchParams.get("south");
+  const east = searchParams.get("east");
+  const west = searchParams.get("west");
 
   const skip = (page - 1) * limit;
 
@@ -74,6 +78,17 @@ export async function GET(req) {
 
   if (minBaths) {
     filterParts.push(`BathroomsTotalInteger ge ${minBaths}`);
+  }
+
+  // Add geographic bounds filter
+  if (north && south && east && west) {
+    const n = parseFloat(north);
+    const s = parseFloat(south);
+    const e = parseFloat(east);
+    const w = parseFloat(west);
+    if (!isNaN(n) && !isNaN(s) && !isNaN(e) && !isNaN(w)) {
+      filterParts.push(`Latitude ge ${s} and Latitude le ${n} and Longitude ge ${w} and Longitude le ${e}`);
+    }
   }
 
   // Add search query support (search within city if both city and query provided)

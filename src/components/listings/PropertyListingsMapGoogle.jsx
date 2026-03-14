@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState, useEffect } from "react";
+import { useCallback, useMemo, useRef, useState, useEffect, memo } from "react";
 import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from "@react-google-maps/api";
 import Link from "next/link";
 
@@ -74,7 +74,7 @@ const ZOOM_PROPERTY_LEVEL = 20; // zoom >= this: show all individual properties 
 // Geocoding is included since it's enabled on the API key
 const GOOGLE_MAPS_LIBRARIES = ["places", "geometry", "geocoding"];
 
-export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {}, onBoundsChange, searchQuery, hasSearchResults = false, onMapClick, onZoomChange, listingType = "sale" }) {
+export default memo(function PropertyListingsMapGoogle({ listings = [], mapCenter = {}, bounds, onBoundsChange, searchQuery, hasSearchResults = false, onMapClick, onZoomChange, listingType = "sale" }) {
   const [selectedId, setSelectedId] = useState(null);
   const [zoomLevel, setZoomLevel] = useState(12);
   const [selectedCityKey, setSelectedCityKey] = useState(null);
@@ -82,6 +82,7 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
   const [searchLocation, setSearchLocation] = useState(null); // Geocoded point for roads/areas
   const mapRef = useRef(null);
   const zoomSetRef = useRef(false); // Track if zoom has been set for current search
+  const ignoreNextBoundsUpdateRef = useRef(false); // Avoid loops when we programmatically fitBounds
 
   const apiKey = typeof window !== "undefined"
     ? (process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "")
@@ -353,11 +354,13 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
 
           if (hasValidCoords) {
             // Increased padding to 80px for better visibility of all properties
-            map.fitBounds(bounds, { padding: 80 });
+            ignoreNextBoundsUpdateRef.current = true;
+            map.fitBounds(bounds, { padding: 80, maxZoom: 15 });
             // When not searching, keep zoom below 12 to show city clusters
             setTimeout(() => {
               const zoom = map.getZoom();
               if (zoom && zoom >= 12) {
+                ignoreNextBoundsUpdateRef.current = true;
                 map.setZoom(11);
                 setZoomLevel(11);
               } else {
@@ -374,6 +377,12 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
       }
 
       map.addListener("zoom_changed", () => {
+        // Ignore zoom events caused by programmatic map updates
+        if (ignoreNextBoundsUpdateRef.current) {
+          ignoreNextBoundsUpdateRef.current = false;
+          return;
+        }
+
         const newZoom = map.getZoom();
         if (newZoom !== null && newZoom !== undefined) {
           setZoomLevel(newZoom);
@@ -416,6 +425,12 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
 
       if (onBoundsChange) {
         const report = () => {
+          // Ignore bounds updates caused by programmatic fitBounds calls
+          if (ignoreNextBoundsUpdateRef.current) {
+            ignoreNextBoundsUpdateRef.current = false;
+            return;
+          }
+
           const b = map.getBounds();
           if (!b) return;
           const ne = b.getNorthEast();
@@ -518,6 +533,23 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
   const onUnmount = useCallback(() => {
     mapRef.current = null;
   }, []);
+
+  // Fit bounds when bounds prop changes (e.g., after search)
+  useEffect(() => {
+    if (bounds && mapRef.current) {
+      ignoreNextBoundsUpdateRef.current = true;
+      mapRef.current.fitBounds(bounds, { padding: 50, maxZoom: 15 });
+      // Ensure we do not keep zooming beyond max
+      setTimeout(() => {
+        if (mapRef.current) {
+          const currentZoom = mapRef.current.getZoom();
+          if (currentZoom && currentZoom > 15) {
+            mapRef.current.setZoom(15);
+          }
+        }
+      }, 100);
+    }
+  }, [bounds]);
 
   // ALWAYS geocode search query first to show exact searched location
   // Priority: Show exact searched location, then show properties if they exist
@@ -741,8 +773,13 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
           // Verify it's actually in Canada (Nova Scotia region)
           const isInNovaScotia = lat >= 43.0 && lat <= 47.0 && lng >= -66.5 && lng <= -59.0;
 
-          if (!isInNovaScotia && process.env.NODE_ENV === "development") {
-            console.warn("⚠️ Geocoded location is outside Nova Scotia bounds:", { lat, lng, formattedAddress });
+          if (!isInNovaScotia) {
+            // If the search location is outside Nova Scotia, do not override the map view.
+            // This keeps the map focused on the listed properties (which are Nova Scotia-based).
+            if (process.env.NODE_ENV === "development") {
+              console.warn("⚠️ Geocoded location is outside Nova Scotia bounds (ignoring):", { lat, lng, formattedAddress });
+            }
+            return;
           }
 
           // ALWAYS show search location marker (user searched for this location)
@@ -769,6 +806,7 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
             // Pan to EXACT search location and zoom in IMMEDIATELY to show the road/location
             // Use setCenter + setZoom for precise control (not fitBounds)
             mapRef.current.setCenter({ lat, lng });
+            ignoreNextBoundsUpdateRef.current = true;
             mapRef.current.setZoom(targetZoom);
             setZoomLevel(targetZoom);
 
@@ -925,7 +963,7 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
         }
 
         // Fit bounds to show search location prominently - use less padding for tighter zoom
-        mapRef.current.fitBounds(bounds, { padding: 30 });
+        mapRef.current.fitBounds(bounds, { padding: 30, maxZoom: 15 });
 
         // After fitBounds, ensure minimum zoom level (prevents zooming out too much)
         // Do this IMMEDIATELY for faster response
@@ -1001,7 +1039,8 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
           const currentMapType = mapRef.current.getMapTypeId();
           // Fit bounds with padding to ensure all properties are visible
           // When showing clusters, ensure zoom stays below 12 to show city dots
-          mapRef.current.fitBounds(bounds, { padding: 80 });
+          ignoreNextBoundsUpdateRef.current = true;
+          mapRef.current.fitBounds(bounds, { padding: 80, maxZoom: 15 });
 
           // If zoomed in too much (above 11), zoom out to show clusters
           setTimeout(() => {
@@ -1009,6 +1048,7 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
               const currentZoom = mapRef.current.getZoom();
               if (currentZoom && currentZoom >= 12) {
                 // Zoom out to show city clusters
+                ignoreNextBoundsUpdateRef.current = true;
                 mapRef.current.setZoom(11);
               }
             }
@@ -1023,12 +1063,13 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
           setTimeout(() => {
             if (mapRef.current) {
               try {
-                mapRef.current.fitBounds(bounds, { padding: 80 });
+                mapRef.current.fitBounds(bounds, { padding: 80, maxZoom: 15 });
                 // Ensure zoom stays below 12 for clusters
                 setTimeout(() => {
                   if (mapRef.current && !searchQuery) {
                     const currentZoom = mapRef.current.getZoom();
                     if (currentZoom && currentZoom >= 12) {
+                      ignoreNextBoundsUpdateRef.current = true;
                       mapRef.current.setZoom(11);
                     }
                   }
@@ -1545,4 +1586,4 @@ export default function PropertyListingsMapGoogle({ listings = [], mapCenter = {
       </GoogleMap>
     </div>
   );
-}
+});
