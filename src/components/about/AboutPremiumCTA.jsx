@@ -1,6 +1,6 @@
 function AboutPremiumCTA() {
   return (
-    <section className="py-28 bg-white">
+    <section className="py-16 bg-white">
       <div className="max-w-[1400px] mx-auto px-4">
 
         <div

@@ -6,8 +6,6 @@ export default function PropertyCard({ listing, showNewDevelopmentBadge = false,
   const image = listing.Image || "/images/placeholder.jpg";
   const isExternal = image.startsWith("http");
 
-  // Check if it's a new development (built in last 5 years)
-  // Also check PropertySubType or other indicators
   const currentYear = new Date().getFullYear();
   const yearBuilt = listing.YearBuilt || listing.YearBuiltNum || listing.BuildingYearBuilt;
   const isNewDevelopmentByYear = yearBuilt && parseInt(yearBuilt) >= (currentYear - 5);
@@ -33,7 +31,6 @@ export default function PropertyCard({ listing, showNewDevelopmentBadge = false,
     listing.Province ||
     "NS";
 
-  // 🔑 CITY SLUG (IMPORTANT)
   const citySlug = encodeURIComponent(
     (listing.City || "nova-scotia")
       .toLowerCase()
@@ -42,10 +39,7 @@ export default function PropertyCard({ listing, showNewDevelopmentBadge = false,
 
   const listingId = listing.ListingId;
 
-  // Determine base path based on listingType AND property data
-  // If property is a new development (built in last 5 years), always use new-development URL
-  // This ensures search results show correct URLs even if listingType is "sale"
-  const isNewDevelopmentProperty = isNewDevelopment; // Already calculated above
+  const isNewDevelopmentProperty = isNewDevelopment;
   const basePath = isNewDevelopmentProperty
     ? "new-development"
     : (listingType === "newDevelopment" || listingType === "new-development")
@@ -54,7 +48,6 @@ export default function PropertyCard({ listing, showNewDevelopmentBadge = false,
         ? "rent"
         : "buy";
 
-  // Structured data for SEO
   const structuredData = {
     "@context": "https://schema.org",
     "@type": "Residence",
@@ -90,7 +83,7 @@ export default function PropertyCard({ listing, showNewDevelopmentBadge = false,
       />
       <Link
         href={`/${basePath}/${citySlug}/${listingId}`}
-        className="group rounded-2xl overflow-hidden bg-white shadow-md hover:shadow-2xl transition block"
+        className="group rounded-2xl overflow-hidden bg-white shadow-md hover:shadow-2xl transition block h-full flex flex-col"
         prefetch={true}
       >
         {/* IMAGE */}
@@ -107,13 +100,12 @@ export default function PropertyCard({ listing, showNewDevelopmentBadge = false,
           />
 
           <div className="absolute top-4 left-4 flex flex-col gap-2">
-            {/* Only show "For Sale" or "For Rent" if it's NOT a new development */}
             {!isNewDevelopment && listingType !== "newDevelopment" && listingType !== "new-development" && (
               <span className="bg-[#091D35] text-white text-xs font-semibold px-3 py-1 rounded-full">
                 {listingType === "rent" ? "For Rent" : "For Sale"}
               </span>
             )}
-            {/* Show "New Development" badge if it's a new development */}
+
             {(listingType === "newDevelopment" || listingType === "new-development" || isNewDevelopment) && (
               <span className="bg-[#091D35] text-white text-xs font-semibold px-3 py-1 rounded-full">
                 New Development
@@ -123,7 +115,8 @@ export default function PropertyCard({ listing, showNewDevelopmentBadge = false,
         </div>
 
         {/* CONTENT */}
-        <div className="p-4">
+        <div className="p-4 flex flex-col flex-1">
+
           <p className="text-red-600 font-semibold text-lg">
             ${Number(listing.ListPrice).toLocaleString()}
           </p>
@@ -136,7 +129,7 @@ export default function PropertyCard({ listing, showNewDevelopmentBadge = false,
             {listing.City}, {listing.Province || province}
           </p>
 
-          <div className="mt-4 flex flex-wrap gap-4 text-sm text-gray-500">
+          <div className="mt-auto flex flex-wrap gap-4 text-sm text-gray-500">
             {listing.BedroomsTotal && <span>{listing.BedroomsTotal} Beds</span>}
             {listing.BathroomsTotalInteger && (
               <span>{listing.BathroomsTotalInteger} Baths</span>
@@ -144,6 +137,7 @@ export default function PropertyCard({ listing, showNewDevelopmentBadge = false,
             {sqft && <span>{Number(sqft).toLocaleString()} sq ft</span>}
             {pricePerSqFt && <span>{pricePerSqFt}/sq ft</span>}
           </div>
+
         </div>
       </Link>
     </>

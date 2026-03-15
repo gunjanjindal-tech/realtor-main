@@ -4,7 +4,7 @@ import { Users, Zap, Rocket, ShieldCheck } from "lucide-react";
 
 export default function AboutStory() {
   return (
-    <section className="pt-40 pb-32 bg-white">
+    <section className="pt-20 pb-16 bg-white">
       <div className="max-w-[1440px] mx-auto px-4 md:px-6 2xl:px-12">
 
         {/* ========= IMAGE + STORY ========= */}
@@ -30,7 +30,7 @@ export default function AboutStory() {
           </div>
 
           {/* RIGHT STORY ONLY DARK */}
-          <div className="bg-[#0B1E3D] text-white rounded-3xl px-8 md:px-16 py-20">
+<div className="bg-[#0B1E3D] text-white rounded-3xl px-6 md:px-16 py-12 md:py-20">
             <h2 className="text-3xl md:text-4xl font-bold">
               Our Story
             </h2>
@@ -45,11 +45,10 @@ export default function AboutStory() {
         </div>
 
         {/* ========= FOUNDER + VALUES (SAME ROW, SEPARATE DIVS, SAME DARK BG) ========= */}
-        <div className="mt-24 grid grid-cols-1 lg:grid-cols-2 gap-20">
-
+<div className="mt-14 md:mt-20 grid grid-cols-1 lg:grid-cols-2 gap-10 md:gap-20">
           {/* FOUNDER */}
-          <div className="bg-[#0B1E3D] text-white rounded-3xl px-8 md:px-16 py-20">
-            <h2 className="text-3xl md:text-4xl font-bold mb-8">
+<div className="bg-[#0B1E3D] text-white rounded-3xl px-6 md:px-16 py-12 md:py-20">
+              <h2 className="text-3xl md:text-4xl font-bold mb-8">
               Our Founder
             </h2>
 
@@ -69,8 +68,8 @@ export default function AboutStory() {
           </div>
 
           {/* VALUES */}
-          <div className="bg-[#0B1E3D] text-white rounded-3xl px-8 md:px-16 py-20">
-            <h2 className="text-3xl md:text-4xl font-bold mb-12">
+<div className="bg-[#0B1E3D] text-white rounded-3xl px-6 md:px-16 py-12 md:py-20">
+              <h2 className="text-3xl md:text-4xl font-bold mb-12">
               Our Values
             </h2>
 

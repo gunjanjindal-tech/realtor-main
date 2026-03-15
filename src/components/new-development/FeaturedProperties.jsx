@@ -69,15 +69,15 @@ export default function FeaturedProperties({ city, filters = {}, searchQuery = "
   const endPage = Math.min(totalPages, startPage + maxButtons - 1);
 
   return (
-    <section ref={topRef} className="bg-white py-24">
-      <div className="max-w-[1600px] mx-auto px-6">
+    <section ref={topRef} className="bg-white  py-8 md:py-16">
+      <div className="max-w-[1600px] mx-auto px-4">
 
         {/* HEADER */}
        <div className="mb-10 sm:mb-14">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-  <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-[#091D35]">
-    Featured Properties
-  </h2>
+<div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-[#091D35]">
+              Featured Properties
+            </h2>
 
   <span className="text-sm text-gray-500">
     Showing {listings.length} of {total}

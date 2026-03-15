@@ -174,7 +174,7 @@ export default function NewDevelopmentCityMap({ city, filters = {}, searchQuery 
            New Development Locations
           </span>
 
-          <h2 className="mt-3 text-4xl md:text-5xl font-extrabold text-[#091D35]">
+          <h2 className="mt-3 mt-3 text-3xl sm:text-4xl md:text-5xl font-extrabold text-[#091D35]">
           Discover New Developments in {city}
           </h2>
  <div className="mt-6 h-[3px] w-24 bg-red-600" />

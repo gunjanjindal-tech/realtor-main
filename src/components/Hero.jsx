@@ -16,7 +16,7 @@ export default function Hero() {
   };
 
   return (
-    <section className="relative min-h-[100svh] overflow-hidden">
+   <section className="relative w-full min-h-screen overflow-hidden">
 
       {/* Background Video */}
      <video
@@ -54,20 +54,20 @@ export default function Hero() {
           onSubmit={handleSearch}
           className="mt-10 sm:mt-12 md:mt-14 flex w-full max-w-[95%] sm:max-w-xl md:max-w-2xl lg:max-w-3xl overflow-hidden rounded-full bg-white/90 backdrop-blur-2xl shadow-2xl animate-fade-up-luxury delay-400"
         >
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search homes by city, address, or MLS® number"
-            className="flex-1 bg-transparent px-4 sm:px-6 py-4 text-sm sm:text-base text-black outline-none placeholder:text-gray-500"
-          />
+       <input
+  type="text"
+  value={searchQuery}
+  onChange={(e) => setSearchQuery(e.target.value)}
+  placeholder="Search homes..."
+  className="flex-1 bg-transparent px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-base text-black outline-none placeholder:text-gray-500"
+/>
 
           <button
-            type="submit"
-            className="bg-[#091D35] px-6 sm:px-8 md:px-10 text-sm sm:text-base font-semibold text-white transition hover:bg-[#0c2a4d]"
-          >
-            Search
-          </button>
+  type="submit"
+  className="bg-[#091D35] px-3 sm:px-6 md:px-8 text-xs sm:text-sm md:text-base font-semibold text-white transition hover:bg-[#0c2a4d] whitespace-nowrap"
+>
+  Search
+</button>
         </form>
       </div>
     </section>

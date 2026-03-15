@@ -6,7 +6,7 @@ export default function AboutLocalExpertise() {
   const cities = ["Halifax", "Dartmouth", "Bedford"];
 
   return (
-    <section className="py-32 bg-white">
+    <section className="py-20 bg-white">
       <div className="max-w-[1400px] mx-auto px-6">
 
         {/* SECTION HEADING */}

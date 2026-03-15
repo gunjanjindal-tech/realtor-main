@@ -61,8 +61,8 @@ export default function FeaturedProperties() {
   }, []);
 
   return (
-    <section className="bg-white py-24 overflow-hidden">
-      <div className="mx-auto max-w-[1600px] px-6">
+    <section className="bg-white py-12 md:py-24 overflow-hidden">
+      <div className="mx-auto max-w-[1600px]  px-4 md:px-6">
 
         {/* Heading */}
         <div className="mb-16 max-w-3xl">
@@ -70,7 +70,7 @@ export default function FeaturedProperties() {
             Featured Listings
           </span>
 
-          <h2 className="mt-3 text-4xl font-bold text-[#091D35]">
+          <h2 className="mt-3 text-3xl md:text-4xl font-bold text-[#091D35]">
             Handpicked Homes Across Nova Scotia
           </h2>
 
@@ -96,7 +96,7 @@ export default function FeaturedProperties() {
         <div
           className="
             flex gap-6 overflow-x-auto px-6
-            snap-x snap-mandatory scroll-px-6
+            snap-x snap-mandatory scroll-px-6 py-1
             sm:grid sm:grid-cols-2 sm:gap-10 sm:overflow-visible sm:px-6
             md:grid-cols-3 scrollbar-hide
           "
@@ -113,7 +113,7 @@ export default function FeaturedProperties() {
       )}
 
       {/* CTA */}
-      <div className="mt-16 flex justify-center">
+      <div className="mt-6 md:mt-16 flex justify-center">
         <button
           onClick={() => router.push("/buy")}
           className="rounded-full bg-red-600 px-10 py-4 text-sm font-semibold tracking-wide text-white transition hover:bg-red-700"

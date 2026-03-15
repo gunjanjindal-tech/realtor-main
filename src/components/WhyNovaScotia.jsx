@@ -27,7 +27,7 @@ export default function WhyNovaScotia() {
   ];
 
   return (
-    <section className="relative bg-white py-20 md:py-32">
+    <section className="relative bg-white py-12 md:py-24">
       {/* Subtle dividers */}
       <div className="absolute top-0 left-0 h-px w-full bg-gray-200" />
       <div className="absolute bottom-0 left-0 h-px w-full bg-gray-200" />
@@ -40,7 +40,7 @@ export default function WhyNovaScotia() {
             Why Nova Scotia
           </span>
 
-          <h2 className="mt-4 text-5xl font-extrabold leading-tight text-[#091D35]">
+     <h2 className="mt-3 text-4xl font-extrabold text-[#091D35]">
             Where Lifestyle <br />
             Meets Long-Term Value
           </h2>

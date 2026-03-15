@@ -84,11 +84,11 @@ export default function CityBuyPage() {
       </section>
 
       {/* LISTINGS */}
-      <section className="bg-white py-12">
+      <section className="bg-white py-6 md:py-12">
         <div className="max-w-[1600px] px-6 ">
 
           {/* HEADER ROW */}
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8 px-6 bg-gray-50 py-6 rounded-lg mb-10">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8 px-2 bg-gray-50 py-6 rounded-lg mb-2">
 
             {/* LEFT */}
             <div className="max-w-2xl">

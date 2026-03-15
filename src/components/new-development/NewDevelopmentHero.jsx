@@ -1,10 +1,10 @@
 export default function NewDevelopmentHero() {
   return (
-    <section className="relative h-[65vh] flex items-center justify-center bg-[#0E2A47] text-white">
+    <section className="relative pt-10 md:pt-0 h-[75vh] md:h-[65vh] flex items-center justify-center bg-[#0E2A47] text-white">
       <div className="absolute inset-0 bg-black/40" />
 
       <div className="relative z-10 text-center px-6">
-        <h1 className="text-4xl md:text-6xl font-extrabold">
+        <h1 className="text-3xl sm:text-4xl md:text-6xl font-extrabold">
           New Developments
         </h1>
         {/* RED UNDERLINE */}

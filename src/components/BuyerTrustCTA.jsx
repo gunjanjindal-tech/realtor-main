@@ -4,9 +4,9 @@ import { ShieldCheck, CalendarDays, UserPlus } from "lucide-react";
 
 export default function BuyerTrustCTA() {
   return (
-    <section className="mb-24">
+    <section className="mb-14">
       <div className="mx-auto max-w-[1600px] px-6">
-        <div className="relative overflow-hidden rounded-3xl bg-[#091D35] px-8 py-12 sm:px-16">
+        <div className="relative overflow-hidden rounded-3xl bg-[#091D35] px-4  md:px-8 py-12 sm:px-16">
 
           {/* Background Accent */}
           <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full " />
@@ -44,7 +44,7 @@ export default function BuyerTrustCTA() {
               </p>
 
               {/* CTA BUTTONS */}
-              <div className="mt-10 flex flex-wrap items-center gap-5">
+              <div className="mt-10 flex flex-wrap items-center gap-5 justify-center md:justify-start">
                 {/* Schedule Meeting */}
                 <a
                   href="https://akshay42hj.setmore.com"
