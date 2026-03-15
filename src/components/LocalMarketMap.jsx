@@ -1,6 +1,6 @@
 export default function LocalMarketMap() {
   return (
-    <section className="bg-white py-32">
+    <section className="bg-white py-12 md:py-24">
       <div className="mx-auto max-w-[1600px] px-6 grid gap-16 lg:grid-cols-2 items-center">
 
         {/* LEFT CONTENT */}
@@ -9,7 +9,7 @@ export default function LocalMarketMap() {
             Local Expertise
           </span>
 
-          <h2 className="mt-4 text-5xl font-extrabold leading-tight text-[#091D35]">
+               <h2 className="mt-3 text-3xl md:text-4xl font-extrabold text-[#091D35]">
             Local Market Expertise <br />
             That Truly Matters
           </h2>

@@ -36,8 +36,8 @@ const showcaseItems = [
 
 export default function FeaturedShowcase() {
   return (
-    <section className="bg-[#0B1F3B] py-24">
-      <div className="mx-auto max-w-[1600px] px-6">
+    <section className="bg-[#0B1F3B] py-12 md:py-24">
+      <div className="mx-auto max-w-[1600px] px-4 md:px-6">
 
         {/* Heading */}
         <div className="mb-14 max-w-3xl">
@@ -45,7 +45,7 @@ export default function FeaturedShowcase() {
             Explore Nova Scotia
           </span>
 
-          <h2 className="mt-3 text-4xl font-extrabold text-white">
+          <h2 className="mt-3 text-3xl md:text-4xl font-extrabold text-white">
             Discover Distinct Places & Lifestyles
           </h2>
 
@@ -64,7 +64,10 @@ export default function FeaturedShowcase() {
               <Link
                 key={index}
                 href={`/buy/${item.slug}`}
-                className="group relative min-w-[320px] md:min-w-[420px] h-[480px] overflow-hidden rounded-2xl bg-gray-200 block"
+                className="snap-start group relative 
+min-w-[85%] sm:min-w-[320px] md:min-w-[420px]
+h-[420px] sm:h-[460px] md:h-[480px]
+overflow-hidden rounded-2xl bg-gray-200 block"
               >
                 {/* Image */}
                 <Image

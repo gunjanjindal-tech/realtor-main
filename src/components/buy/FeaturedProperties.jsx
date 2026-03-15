@@ -114,13 +114,13 @@ export default function FeaturedProperties({ city, filters = {}, searchQuery = "
   const endPage = Math.min(totalPages, startPage + maxButtons - 1);
 
   return (
-    <section ref={topRef} className="bg-white  pt-14 sm:pb-7 lg:pb-14">
-      <div className="max-w-[1600px] mx-auto px-4">
+    <section ref={topRef} className="bg-white py-8 md:py-16">
+      <div className="max-w-[1600px] px-4 md:px-6">
 
         {/* HEADER */}
         <div className="mb-10 sm:mb-14">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-[#091D35]">
+            <h2 className="text-3xl sm:text-4xl  lg:text-5xl font-extrabold text-[#091D35]">
               Featured Properties
             </h2>
 

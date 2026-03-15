@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function AgentTrust() {
   return (
-    <section className="bg-white py-28">
+    <section className="bg-white py-12 md:py-24">
       <div className="mx-auto max-w-[1600px] px-6 grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
 
         {/* LEFT CONTENT */}
@@ -11,7 +11,7 @@ export default function AgentTrust() {
             Your Local Advantage
           </span>
 
-          <h2 className="mt-4 text-4xl font-extrabold leading-tight text-[#091D35]">
+          <h2 className="mt-4 text-3xl md:text-4xl  font-extrabold leading-tight text-[#091D35]">
             Trusted Nova Scotia <br />
             Real Estate Expertise
           </h2>
@@ -46,7 +46,7 @@ export default function AgentTrust() {
           </ul>
 
           {/* CTA */}
-<div className="mt-12">
+<div className="mt-12 flex justify-center md:justify-start">
   <Link href="/contact">
     <button className="group inline-flex items-center gap-3 rounded-full bg-red-600 px-10 py-4 text-sm font-semibold tracking-wide text-white transition-all duration-300 hover:bg-red-700 hover:shadow-lg">
       Contact Us

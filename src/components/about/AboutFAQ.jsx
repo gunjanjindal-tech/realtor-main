@@ -25,7 +25,7 @@ export default function AboutFAQ() {
   const [open, setOpen] = useState(null);
 
   return (
-    <section className="bg-white py-18">
+    <section className="bg-white py-12">
       <div className="mx-auto max-w-5xl px-6">
 
         {/* HEADING */}
@@ -71,14 +71,14 @@ export default function AboutFAQ() {
                     {item.q}
                   </span>
 
-                  <span
-                    className={`
-                      flex h-8 w-8 items-center justify-center rounded-full
-                      bg-red-100 text-red-600 text-xl font-bold
-                      transition-transform duration-300
-                      ${isOpen ? "rotate-45" : ""}
-                    `}
-                  >
+                <span
+  className={`
+    flex h-8 w-8 shrink-0 items-center justify-center rounded-full
+    bg-red-100 text-red-600 text-xl font-bold ml-4
+    transition-transform duration-300
+    ${isOpen ? "rotate-45" : ""}
+  `}
+>
                     +
                   </span>
                 </button>

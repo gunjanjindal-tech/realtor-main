@@ -102,7 +102,7 @@ export default function BuyRegions({ onSelectCity }) {
   };
 
   return (
-    <section className="bg-white py-20">
+    <section className="bg-white py-8 md:py-16">
       <div className="mx-auto max-w-[1600px] px-6">
 
 

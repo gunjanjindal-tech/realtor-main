@@ -24,7 +24,7 @@ export default function AboutDifferentiator() {
   ];
 
   return (
-    <section className="py-32 bg-white">
+    <section className="py-20 bg-white">
       <div className="max-w-[1400px] mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-20 items-start">
 
         {/* LEFT */}

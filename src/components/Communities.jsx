@@ -94,8 +94,8 @@ export default function Communities() {
   }, []);
 
   return (
-    <section className="bg-white py-24">
-      <div className="mx-auto max-w-[1600px] px-6">
+    <section className="bg-white py-12 md:py-24">
+      <div className="mx-auto max-w-[1600px] px-4 md:px-6">
 
         {/* Heading */}
         <div className="mb-16 max-w-3xl">
@@ -103,7 +103,7 @@ export default function Communities() {
             Browse by Community
           </span>
 
-          <h2 className="mt-3 text-4xl font-extrabold text-[#091D35]">
+          <h2 className="mt-3 text-3xl md:text-4xl font-extrabold text-[#091D35]">
             Explore Popular Communities in Nova Scotia
           </h2>
 
@@ -140,15 +140,15 @@ export default function Communities() {
       <div
         key={community.name}
         onClick={handleCardClick}
-        className="
-          group relative snap-start cursor-pointer
-          min-w-[260px]
-          overflow-hidden rounded-2xl border border-gray-200 bg-white p-6
-          transition-all duration-300
-          hover:-translate-y-1 hover:border-red-500 hover:shadow-xl
+       className="
+  group relative snap-start cursor-pointer
+  min-w-[260px] min-h-[190px]
+  overflow-hidden rounded-2xl border border-gray-200 bg-white p-6
+  transition-all duration-300
+  hover:-translate-y-1 hover:border-red-500 hover:shadow-xl
 
-          sm:min-w-0 sm:p-8
-        "
+  sm:min-w-0 sm:p-8 sm:min-h-[210px]
+"
       >
         {/* Hover Gradient */}
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-red-50 via-white to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
@@ -178,7 +178,7 @@ export default function Communities() {
 
 
         {/* CTA */}
-        <div className="mt-16 text-center">
+        <div className="mt-6 md:mt-16 flex justify-center">
           <button
             onClick={() => router.push("/buy")}
             className="rounded-full bg-red-600 px-10 py-4 text-sm font-semibold tracking-wide text-white transition hover:bg-red-700"

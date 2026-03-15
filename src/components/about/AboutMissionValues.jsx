@@ -25,7 +25,7 @@ export default function AboutMissionValues() {
   ];
 
   return (
-    <section className="bg-[#0B1F3B] py-32">
+    <section className="bg-[#0B1F3B] py-20">
       <div className="max-w-[1400px] mx-auto px-6">
 
         {/* SECTION HEADING */}

@@ -165,7 +165,7 @@ export default function CityMap({ city, filters = {}, searchQuery = "" }) {
              Homes for Sale
           </span>
 
-          <h2 className="mt-3 text-4xl md:text-5xl font-extrabold text-[#091D35]">
+          <h2 className="mt-3 text-3xl sm:text-4xl md:text-5xl  font-extrabold text-[#091D35]">
             Discover Homes for Sale in {city}
           </h2>
  <div className="mt-6 h-[3px] w-24 bg-red-600" />

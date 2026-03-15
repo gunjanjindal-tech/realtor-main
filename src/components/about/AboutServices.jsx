@@ -3,7 +3,7 @@
 export default function AboutServices({ services, activeBg, setActiveBg }) {
   return (
     <section
-      className="relative py-32"
+      className="relative py-16 "
       style={{
         backgroundImage: `url(${activeBg})`,
         backgroundSize: "cover",

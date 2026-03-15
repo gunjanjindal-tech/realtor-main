@@ -20,7 +20,7 @@ export default function BuyCityHero({ city }) {
 
   return (
     <section
-      className="relative h-[55vh] flex items-center justify-center text-white"
+      className="relative h-[70vh] sm:h-[55vh] flex items-center justify-center text-white"
       style={{
         backgroundImage: `url(${bg})`,
         backgroundSize: "cover",
@@ -30,7 +30,7 @@ export default function BuyCityHero({ city }) {
       <div className="absolute inset-0 bg-black/55" />
 
       <div className="relative z-10 text-center px-6">
-        <h1 className="text-4xl md:text-6xl font-extrabold">
+        <h1 className=" text-3xl  sm:text-4xl md:text-6xl font-extrabold">
           Homes in {city}
         </h1>
 

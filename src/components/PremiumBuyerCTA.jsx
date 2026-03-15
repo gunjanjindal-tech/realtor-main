@@ -27,7 +27,7 @@ export default function PremiumBuyerCTA() {
   };
 
   return (
-    <section className="relative overflow-hidden bg-[#0B1F3A] py-32">
+    <section className="relative overflow-hidden bg-[#0B1F3A] py-12 md:py-24">
       {/* subtle background accent */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(255,255,255,0.06),transparent_40%)]" />
 
@@ -40,7 +40,7 @@ export default function PremiumBuyerCTA() {
               Buying in Nova Scotia
             </span>
 
-            <h2 className="mt-5 max-w-xl text-5xl font-extrabold leading-tight">
+                    <h2 className="mt-3 text-3xl md:text-4xl font-extrabold ">
               Buy with Confidence. <br />
               Invest with Insight.
             </h2>
@@ -72,8 +72,8 @@ export default function PremiumBuyerCTA() {
           </div>
 
           {/* RIGHT – PREMIUM ACTION CARD */}
-          <div className="relative rounded-3xl bg-white p-12 shadow-2xl">
-            <h3 className="text-2xl font-bold text-[#091D35]">
+          <div className="relative rounded-3xl bg-white p-4 md:p-12 shadow-2xl">
+            <h3 className="text-xl md:text-2xl font-bold text-[#091D35]">
               Get Curated Homes — Not Endless Listings
             </h3>
 

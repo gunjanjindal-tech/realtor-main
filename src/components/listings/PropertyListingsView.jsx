@@ -1244,25 +1244,14 @@ export default function PropertyListingsView() {
 
       {/* MAIN CONTENT */}
       <div
-        className="max-w-[1600px] mx-auto bg-white flex flex-col"
+        className="w-full pt-10 mx-auto bg-white flex flex-col"
         style={{
           height: isMounted && window.innerWidth < 768
             ? 'calc(100vh - 180px)' // Mobile: account for header + filters
             : 'calc(100vh - 100px)', // Desktop (default for SSR)
           overflow: 'hidden'
         }}>
-        {/* Title only – no property count, no "Showing X of Y" text */}
-        <div className="px-6 pt-1 flex-shrink-0">
-          <h1 className="text-2xl font-bold text-[#091D35]">
-            {listingType === "rent"
-              ? "Rental Listings"
-              : listingType === "new-development"
-                ? "New Development Properties"
-                : listingType === "sell"
-                  ? "Sold Properties"
-                  : "Real Estate & Homes for Sale"}
-          </h1>
-        </div>
+       
 
         {/* Split View - Hidden on small devices */}
         {viewMode === "split" && (
