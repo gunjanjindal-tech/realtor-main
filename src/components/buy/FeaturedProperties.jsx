@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import PropertyCard from "./PropertyCard";
 
-export default function FeaturedProperties({ city, filters = {}, searchQuery = "" }) {
+export default function FeaturedProperties({ city, filters = {}, searchQuery = "", initialListings = null, externalLoading = false }) {
   const topRef = useRef(null);
 
   const [page, setPage] = useState(1);
@@ -16,7 +16,7 @@ export default function FeaturedProperties({ city, filters = {}, searchQuery = "
   /* -------- RESET PAGE WHEN FILTERS OR SEARCH CHANGE -------- */
   useEffect(() => {
     setPage(1);
-  }, [filters.minPrice, filters.maxPrice, filters.minBeds, filters.minBaths, searchQuery]);
+  }, [filters.minPrice, filters.maxPrice, filters.minBeds, filters.minBaths, searchQuery, initialListings?.length]);
 
   /* -------- RESPONSIVE LIMIT -------- */
   useEffect(() => {
@@ -46,8 +46,19 @@ export default function FeaturedProperties({ city, filters = {}, searchQuery = "
   }, [limit]);
 
 
-  /* -------- FETCH LISTINGS -------- */
+  /* -------- FETCH/LOAD LISTINGS -------- */
   useEffect(() => {
+    // If initialListings is provided (even if empty), use it and skip fetch
+    if (initialListings !== null) {
+      setLoading(false);
+      const start = (page - 1) * limit;
+      const paginatedListings = initialListings.slice(start, start + limit);
+      setListings(paginatedListings);
+      setTotal(initialListings.length);
+      return;
+    }
+
+    // FALLBACK TO API FETCHING (only if no initialListings provided)
     async function fetchListings() {
       setLoading(true);
       try {
@@ -94,8 +105,10 @@ export default function FeaturedProperties({ city, filters = {}, searchQuery = "
       }
     }
 
-    fetchListings();
-  }, [page, city, limit, filters.minPrice, filters.maxPrice, filters.minBeds, filters.minBaths, searchQuery]);
+    if (!externalLoading) {
+      fetchListings();
+    }
+  }, [page, city, limit, filters.minPrice, filters.maxPrice, filters.minBeds, filters.minBaths, searchQuery, initialListings, externalLoading]);
 
   const totalPages = Math.ceil(total / limit);
 

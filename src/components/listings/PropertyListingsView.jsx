@@ -998,6 +998,7 @@ export default function PropertyListingsView() {
                 listingType={listingType}
                 onMapClick={onMapClick}
                 onZoomChange={() => {}}
+                loading={loading}
               />
             </div>
           </div>

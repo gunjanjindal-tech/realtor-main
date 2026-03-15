@@ -2,6 +2,7 @@
 
 import { useMemo, memo } from "react";
 import dynamic from "next/dynamic";
+import { Map } from "lucide-react";
 
 // Google Maps (no SSR) - optimized loading with eager loading
 const MapClient = dynamic(
@@ -13,7 +14,16 @@ const MapClient = dynamic(
   }
 );
 
-export default memo(function PropertyListingsMap({ listings = [], onBoundsChange, searchQuery, hasSearchResults = false, onMapClick, onZoomChange, listingType = "sale" }) {
+export default memo(function PropertyListingsMap({ 
+  listings = [], 
+  onBoundsChange, 
+  searchQuery, 
+  hasSearchResults = false, 
+  onMapClick, 
+  onZoomChange, 
+  listingType = "sale",
+  loading = false 
+}) {
   // Filter listings with valid coordinates from Bridge API - optimized
   const validListings = useMemo(() => {
     if (listings.length === 0) return [];
@@ -93,24 +103,35 @@ export default memo(function PropertyListingsMap({ listings = [], onBoundsChange
     >
       {validListings.length === 0 ? (
         <div className="h-full w-full flex items-center justify-center">
-          <div className="text-center">
-            {listings.length === 0 ? (
+          <div className="text-center px-4">
+            {loading ? (
               <>
-                <p className="text-gray-500 mb-2">Loading properties...</p>
-                <div className="w-8 h-8 border-4 border-[#091d35] border-t-transparent rounded-full animate-spin mx-auto mt-4"></div>
+                <p className="text-gray-500 mb-2 font-medium text-lg">Loading properties...</p>
+                <div className="w-10 h-10 border-4 border-[#091d35] border-t-transparent rounded-full animate-spin mx-auto mt-4"></div>
               </>
             ) : (
-              <>
-                <p className="text-gray-500 mb-2">No properties with location data</p>
-                <p className="text-sm text-gray-400">
-                  {listings.length} properties found, but none have coordinates
+              <div className="bg-white/80 backdrop-blur-sm p-8 rounded-2xl shadow-xl border border-gray-100 max-w-md mx-auto transform transition-all animate-fadeIn">
+                <div className="bg-gray-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Map className="w-8 h-8 text-gray-400" />
+                </div>
+                <p className="text-[#091d35] font-bold text-xl mb-2">No locations found</p>
+                <p className="text-gray-500 text-sm leading-relaxed">
+                  {listings.length === 0 
+                    ? "We couldn't find any properties matching your current search and filters."
+                    : `We found ${listings.length} properties, but none of them have valid map coordinates to display.`}
                 </p>
-                {process.env.NODE_ENV === "development" && (
-                  <p className="text-xs text-gray-400 mt-2">
-                    Check API response for Latitude/Longitude fields
+                {searchQuery && (
+                  <p className="mt-4 text-xs font-semibold text-red-600 uppercase tracking-wider">
+                    Searching for: "{searchQuery}"
                   </p>
                 )}
-              </>
+                <button 
+                  onClick={() => window.location.reload()}
+                  className="mt-6 px-6 py-2 bg-[#091d35] text-white text-sm font-semibold rounded-full hover:bg-red-600 transition-colors duration-300"
+                >
+                  Reset Search
+                </button>
+              </div>
             )}
           </div>
         </div>

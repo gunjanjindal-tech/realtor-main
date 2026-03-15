@@ -153,7 +153,8 @@ export async function GET(req) {
   } else if (pinsOnly) {
     topLimit = 200; // MUST cap at 200 per request to avoid API error
   } else {
-    topLimit = Math.min(Number(requestedLimit || 40), 200); // Sidebar page size
+    const rawLimit = requestedLimit === "all" || requestedLimit === "max" ? 200 : Number(requestedLimit || 40);
+    topLimit = Math.min(isNaN(rawLimit) ? 40 : rawLimit, 200); // Sidebar page size
   }
 
   // Use $count=true to get the full dataset size regardless of $top

@@ -3,18 +3,51 @@
 import { useEffect, useRef, useState } from "react";
 import PropertyCard from "../buy/PropertyCard";
 
-export default function FeaturedProperties({ city, filters = {}, searchQuery = "" }) {
+export default function FeaturedProperties({ city, filters = {}, searchQuery = "", initialListings = null, externalLoading = false }) {
   const topRef = useRef(null);
 
   const [page, setPage] = useState(1);
   const [listings, setListings] = useState([]);
   const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [limit, setLimit] = useState(9);
 
-  const limit = 9;
-
-  /* ---------------- FETCH LISTINGS (no full-screen loading on page change - like Buy) ---------------- */
+  /* ---------------- RESET PAGE WHEN FILTERS OR SEARCH CHANGE ---------------- */
   useEffect(() => {
+    setPage(1);
+  }, [filters.minPrice, filters.maxPrice, filters.minBeds, filters.minBaths, searchQuery, initialListings?.length]);
+
+  /* ---------------- RESPONSIVE LIMIT ---------------- */
+  useEffect(() => {
+    // Let's use the same responsive limit logic as buy for consistency
+    let timeout;
+    function updateLimit() {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => {
+        const width = window.innerWidth;
+        if (width < 640) setLimit(6);
+        else if (width < 1024) setLimit(8);
+        else setLimit(9);
+      }, 150);
+    }
+    updateLimit();
+    window.addEventListener("resize", updateLimit);
+    return () => window.removeEventListener("resize", updateLimit);
+  }, []);
+
+  /* ---------------- FETCH/LOAD LISTINGS ---------------- */
+  useEffect(() => {
+    // If initialListings is provided (even if empty), use it and skip fetch
+    if (initialListings !== null) {
+      setLoading(false);
+      const start = (page - 1) * limit;
+      setListings(initialListings.slice(start, start + limit));
+      setTotal(initialListings.length);
+      return;
+    }
+
     async function fetchListings() {
+      setLoading(true);
       try {
         const params = new URLSearchParams({
           page: page.toString(),
@@ -47,11 +80,15 @@ export default function FeaturedProperties({ city, filters = {}, searchQuery = "
       } catch (err) {
         setListings([]);
         setTotal(0);
+      } finally {
+        setLoading(false);
       }
     }
 
-    fetchListings();
-  }, [page, city, filters.minPrice, filters.maxPrice, filters.minBeds, filters.minBaths, searchQuery]);
+    if (!externalLoading) {
+      fetchListings();
+    }
+  }, [page, city, filters.minPrice, filters.maxPrice, filters.minBeds, filters.minBaths, searchQuery, initialListings, externalLoading]);
 
   const totalPages = Math.ceil(total / limit);
 

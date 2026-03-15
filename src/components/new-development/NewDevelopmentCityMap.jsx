@@ -3,47 +3,49 @@
 import { useEffect, useState, useMemo } from "react";
 import PropertyListingsMap from "@/components/listings/PropertyListingsMap";
 
-export default function NewDevelopmentCityMap({ city, filters = {}, searchQuery = "" }) {
+export default function NewDevelopmentCityMap({ city, filters = {}, searchQuery = "", listings = null, externalLoading = false }) {
   const [allListings, setAllListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    // If listings are provided via prop and loading is finished, use them
+    if (listings !== null && !externalLoading) {
+      setAllListings(listings);
+      setLoading(false);
+      return;
+    }
+
+    // Still use listings if they are provided, but respect externalLoading
+    if (listings && listings.length > 0) {
+      setAllListings(listings);
+      if (!externalLoading) setLoading(false);
+      return;
+    }
+
     async function fetchAllCityListings() {
       if (!city && !searchQuery) return;
-
       setLoading(true);
       setError(null);
-
       try {
-        const params = new URLSearchParams({
-          page: "1",
-          limit: "200", // Bridge API max is 200 per request
-        });
-
+        const params = new URLSearchParams({ page: "1", limit: "200" });
         const hasSearchQuery = searchQuery && searchQuery.trim().length > 0;
 
         if (hasSearchQuery) {
-          // Use search API when search query is provided
           params.append("q", searchQuery.trim());
           if (filters.minPrice) params.append("minPrice", filters.minPrice);
           if (filters.maxPrice) params.append("maxPrice", filters.maxPrice);
           if (filters.minBeds) params.append("minBeds", filters.minBeds);
           if (filters.minBaths) params.append("minBaths", filters.minBaths);
 
-          // For search, fetch first page only (200 properties) to avoid too many API calls
           const res = await fetch(`/api/bridge/search?${params}`);
-          
           if (!res.ok) {
             setAllListings([]);
             setLoading(false);
             return;
           }
-
           const data = await res.json();
           let fetchedListings = data.listings || [];
-
-          // Filter to only show new development properties
           fetchedListings = fetchedListings.filter(listing => {
             const yearBuilt = listing.YearBuilt || 0;
             const currentYear = new Date().getFullYear();
@@ -51,86 +53,43 @@ export default function NewDevelopmentCityMap({ city, filters = {}, searchQuery 
             const subType = (listing.PropertySubType || "").toLowerCase();
             return isNewDev || subType.includes("new") || subType.includes("pre-construction");
           });
-
-          // REMOVE listings without coordinates
-          fetchedListings = fetchedListings.filter(
-            (l) =>
-              (l.Latitude || l.LatitudeDecimal) &&
-              (l.Longitude || l.LongitudeDecimal)
-          );
-
+          fetchedListings = fetchedListings.filter((l) => (l.Latitude || l.LatitudeDecimal) && (l.Longitude || l.LongitudeDecimal));
           setAllListings(fetchedListings);
           setLoading(false);
           return;
         }
 
-        // Use new-development API when no search query (normal city listing)
         params.append("city", city);
-
         if (filters.minPrice) params.append("minPrice", filters.minPrice);
         if (filters.maxPrice) params.append("maxPrice", filters.maxPrice);
         if (filters.minBeds) params.append("minBeds", filters.minBeds);
         if (filters.minBaths) params.append("minBaths", filters.minBaths);
 
-        // Fetch first page to get total count
         const res = await fetch(`/api/bridge/new-development?${params}`);
-
         if (!res.ok) throw new Error("Failed to fetch properties");
-
         const data = await res.json();
         let fetchedListings = data.listings || [];
         const total = data.total || 0;
-
-        // Calculate total pages needed (200 per page)
         const totalPages = Math.ceil(total / 200);
 
-        // Fetch ALL remaining pages in parallel for faster loading
         if (totalPages > 1) {
           const pagePromises = [];
-
-          // Create promises for all remaining pages (2, 3, 4, ... totalPages)
           for (let page = 2; page <= totalPages; page++) {
             const pageParams = new URLSearchParams(params);
             pageParams.set("page", page.toString());
-
             pagePromises.push(
               fetch(`/api/bridge/new-development?${pageParams}`)
                 .then(res => res.ok ? res.json() : null)
                 .then(pageData => pageData?.listings || [])
-                .catch(err => {
-                  console.warn(`Failed to fetch page ${page} for city map:`, err);
-                  return [];
-                })
+                .catch(() => [])
             );
           }
-
-          // Wait for all pages to fetch in parallel
           const additionalListingsArrays = await Promise.all(pagePromises);
-
-          // Flatten all results into single array
-          const additionalListings = additionalListingsArrays.flat();
-          fetchedListings = [...fetchedListings, ...additionalListings];
+          fetchedListings = [...fetchedListings, ...additionalListingsArrays.flat()];
         }
 
-        const totalFetched = fetchedListings.length;
-
-        // REMOVE listings without coordinates
-        fetchedListings = fetchedListings.filter(
-          (l) =>
-            (l.Latitude || l.LatitudeDecimal) &&
-            (l.Longitude || l.LongitudeDecimal)
-        );
-
+        fetchedListings = fetchedListings.filter((l) => (l.Latitude || l.LatitudeDecimal) && (l.Longitude || l.LongitudeDecimal));
         setAllListings(fetchedListings);
-
-        if (process.env.NODE_ENV === "development") {
-          console.log(`🗺️ New Development City Map (${city})`, {
-            totalProperties: total,
-            fetchedAllPages: totalFetched,
-            withCoordinates: fetchedListings.length,
-            pagesFetched: totalPages,
-          });
-        }
       } catch (err) {
         console.error("Map error:", err);
         setError(err.message);
@@ -139,17 +98,22 @@ export default function NewDevelopmentCityMap({ city, filters = {}, searchQuery 
       }
     }
 
-    fetchAllCityListings();
-  }, [city, filters.minPrice, filters.maxPrice, filters.minBeds, filters.minBaths, searchQuery]);
+    if (!externalLoading && listings === null) {
+      fetchAllCityListings();
+    }
+  }, [city, filters.minPrice, filters.maxPrice, filters.minBeds, filters.minBaths, searchQuery, listings, externalLoading]);
 
-  if (loading) {
+  // Use externalLoading if provided, otherwise fallback to local loading
+  // BUT: if we have listings prop and we are NOT externally loading, we should NOT show the spinner.
+  const isCurrentlyLoading = externalLoading || (loading && listings === null);
+
+  if (isCurrentlyLoading && allListings.length === 0) {
     return (
       <section className="bg-white py-14">
         <div className="max-w-[1600px] mx-auto px-6">
           <div className="h-[600px] flex flex-col items-center justify-center">
             <div className="w-12 h-12 border-4 border-[#091d35] border-t-transparent rounded-full animate-spin mb-4"></div>
             <p className="text-gray-600">Loading all properties on map...</p>
-            <p className="text-sm text-gray-400 mt-2">Fetching all pages...</p>
           </div>
         </div>
       </section>
@@ -187,7 +151,7 @@ export default function NewDevelopmentCityMap({ city, filters = {}, searchQuery 
           className="relative overflow-hidden rounded-2xl shadow-2xl"
           style={{ height: "600px" }}
         >
-          <PropertyListingsMap listings={allListings} />
+          <PropertyListingsMap listings={allListings} loading={isCurrentlyLoading} />
         </div>
       </div>
     </section>
