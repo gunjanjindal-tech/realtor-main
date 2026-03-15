@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState, useEffect, memo } from "react";
-import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from "@react-google-maps/api";
+import { GoogleMap, useJsApiLoader, Marker, InfoWindow, MarkerClusterer } from "@react-google-maps/api";
 import Link from "next/link";
 
 const MAP_CONTAINER_STYLE = {
@@ -20,51 +20,95 @@ function getStreetNumber(listing) {
   return null;
 }
 
-// Navy blue dot marker for available properties
-const BLUE_DOT_ICON_SVG =
-  "data:image/svg+xml," +
-  encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="6" fill="#091d35" stroke="#ffffff" stroke-width="1.5"/></svg>'
-  );
-
-// Red dot marker for sold properties (from buy API with sold status)
-const RED_DOT_ICON_SVG =
-  "data:image/svg+xml," +
-  encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="6" fill="#dc2626" stroke="#ffffff" stroke-width="1.5"/></svg>'
-  );
-
-// Orange dot marker for sold properties from sell API
-const ORANGE_DOT_ICON_SVG =
-  "data:image/svg+xml," +
-  encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="6" fill="#f97316" stroke="#ffffff" stroke-width="1.5"/></svg>'
-  );
-
-// Legacy dot marker (default blue for backward compatibility)
-const DOT_ICON_SVG = BLUE_DOT_ICON_SVG;
-
-// Navy blue pinpoint icon as data URL for Google Marker
-const BLUE_PINPOINT_ICON_SVG =
-  "data:image/svg+xml," +
-  encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 24 30">' +
-    '<path d="M12 0C5.4 0 0 5.4 0 12c0 8.4 12 18 12 18s12-9.6 12-18C24 5.4 18.6 0 12 0z" fill="#091d35" stroke="#ffffff" stroke-width="2"/>' +
-    '<circle cx="12" cy="12" r="6" fill="#ffffff"/>' +
-    '</svg>'
-  );
-
-// City cluster icon - larger dot with count (for city markers)
-function createCityIconSVG(count) {
-  const countText = count > 99 ? "99+" : count.toString();
-  return "data:image/svg+xml," +
-    encodeURIComponent(
-      `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-        <circle cx="16" cy="16" r="14" fill="#091d35" stroke="#ffffff" stroke-width="2"/>
-        <text x="16" y="20" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#ffffff" text-anchor="middle">${countText}</text>
-      </svg>`
-    );
+// Helper to format price for pins
+function formatPriceLabel(price) {
+  if (!price) return "";
+  const num = Number(price);
+  if (isNaN(num)) return price;
+  
+  if (num >= 1000000) {
+    return `$${(num / 1000000).toFixed(1).replace(/\.0$/, '')}M`;
+  }
+  if (num >= 1000) {
+    return `$${Math.round(num / 1000)}K`;
+  }
+  return `$${num}`;
 }
+
+// Generate an SVG data URI for a Zillow-style price pin
+function createPricePinSVG(priceText, isSold, isHovered = false) {
+  // Colors based on state
+  const bg = isSold ? "#dc2626" : (isHovered ? "#ffffff" : "#091d35");
+  const text = isHovered ? "#091d35" : "#ffffff";
+  const border = isHovered ? "#091d35" : "none";
+  
+  // Dynamic width based on text length (approximate)
+  const charWidth = 7;
+  const padding = 16;
+  const width = Math.max(50, priceText.length * charWidth + padding);
+  const height = 28;
+  const arrowHeight = 6;
+  const arrowWidth = 10;
+  
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height + arrowHeight}" viewBox="0 0 ${width} ${height + arrowHeight}">
+      <rect x="0" y="0" width="${width}" height="${height}" rx="6" fill="${bg}" ${border !== 'none' ? `stroke="${border}" stroke-width="1.5"` : ''}/>
+      <polygon points="${width/2 - arrowWidth/2},${height} ${width/2 + arrowWidth/2},${height} ${width/2},${height + arrowHeight}" fill="${bg}"/>
+      <text x="${width/2}" y="${height/2 + 4}" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="700" fill="${text}" text-anchor="middle">${priceText}</text>
+    </svg>
+  `;
+  
+  return "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg.trim());
+}
+
+// Global icon cache to avoid SVG regeneration in the render loop
+const iconCache = new Map();
+
+function getIconUrl(priceText, isSold, isHovered = false) {
+  const cacheKey = `${priceText}-${isSold}-${isHovered}`;
+  if (iconCache.has(cacheKey)) return iconCache.get(cacheKey);
+  
+  const url = createPricePinSVG(priceText, isSold, isHovered);
+  iconCache.set(cacheKey, url);
+  return url;
+}
+
+// Memoized Marker Component for high-performance rendering of 1000+ pins
+const PriceMarker = memo(({ listing, clusterer, isSelected, onClick }) => {
+  const id = listing.ListingId || listing.Id;
+  const lat = listing.Latitude || listing.LatitudeDecimal || listing.latitude || listing.lat;
+  const lng = listing.Longitude || listing.LongitudeDecimal || listing.longitude || listing.lng || listing.lon;
+  const latNum = parseFloat(lat);
+  const lngNum = parseFloat(lng);
+
+  if (isNaN(latNum) || isNaN(lngNum)) return null;
+
+  const isFromSellAPI = listing.MlsStatus === "Sold" || listing.source === 'sell' || listing.ListingId?.startsWith('SELL-');
+  const isSold = isFromSellAPI || listing.StandardStatus === 'Closed' || listing.MlsStatus === 'Closed';
+  const priceValue = listing.ListPrice || listing.ClosePrice || listing.Price;
+  const priceLabel = formatPriceLabel(priceValue) || "N/A";
+  
+  // Use cached icon
+  const iconUrl = getIconUrl(priceLabel, isSold, isSelected);
+  const width = Math.max(50, priceLabel.length * 7 + 16);
+
+  // Stable icon object for Google Maps
+  const icon = useMemo(() => ({
+    url: iconUrl,
+    scaledSize: new window.google.maps.Size(width, 34),
+    anchor: new window.google.maps.Point(width / 2, 34),
+  }), [iconUrl, width]);
+
+  return (
+    <Marker
+      position={{ lat: latNum, lng: lngNum }}
+      clusterer={clusterer}
+      icon={icon}
+      onClick={() => onClick(id)}
+      zIndex={isSelected ? 1000 : 1}
+    />
+  );
+});
 
 const defaultCenter = { lat: 44.6488, lng: -63.5752 };
 const ZOOM_CITY_LEVEL = 13; // zoom < this: show only city markers (very zoomed out)
@@ -117,191 +161,27 @@ export default memo(function PropertyListingsMapGoogle({ listings = [], mapCente
         return isValid;
       });
 
-      // When searching, limit to 200 properties to focus on search location
-      // This ensures map zooms to correct location instead of trying to show all properties
-      const limited = (searchQuery && searchQuery.trim().length > 0)
-        ? filtered.slice(0, 200)
-        : filtered;
-
+      // Show ALL properties in validListings - no more slice limit
       // Debug logging for search (only in development, and only once per search)
       if (process.env.NODE_ENV === "development" && searchQuery && searchQuery.trim().length > 0) {
         // Only log if this is a new search (not on every render)
-        const searchKey = `${searchQuery}-${limited.length}`;
+        const searchKey = `${searchQuery}-${filtered.length}`;
         if (!window._lastSearchLog || window._lastSearchLog !== searchKey) {
           window._lastSearchLog = searchKey;
-          console.log("🗺️ Map Component - Valid Listings (limited to 200 for search):", {
+          console.log("🗺️ Map Component - Valid Listings (Unrestricted):", {
             searchQuery,
             totalListings: listings.length,
-            validListings: filtered.length,
-            limitedTo: limited.length
+            validListings: filtered.length
           });
         }
       }
 
-      return limited;
+      return filtered;
     },
     [listings, searchQuery]
   );
 
-  // Smart clustering: group properties by city, then merge nearby cities when zoomed out
-  // This creates fewer dots that expand when zooming in
-  const clusters = useMemo(() => {
-    if (validListings.length === 0) return [];
 
-    // First, group properties by city
-    const cityGroups = new Map();
-
-    validListings.forEach((listing) => {
-      // Check multiple possible coordinate field names
-      const lat = listing.Latitude || listing.LatitudeDecimal || listing.latitude || listing.lat;
-      const lng = listing.Longitude || listing.LongitudeDecimal || listing.longitude || listing.lng || listing.lon;
-      const latNum = lat != null ? parseFloat(lat) : NaN;
-      const lngNum = lng != null ? parseFloat(lng) : NaN;
-      if (isNaN(latNum) || isNaN(lngNum)) return;
-
-      // Get city name (normalize to handle variations)
-      const cityName = (listing.City || "Unknown").trim();
-      const cityKey = cityName.toLowerCase();
-
-      if (!cityGroups.has(cityKey)) {
-        cityGroups.set(cityKey, {
-          cityName,
-          listings: [],
-          latSum: 0,
-          lngSum: 0,
-          count: 0
-        });
-      }
-
-      const group = cityGroups.get(cityKey);
-      group.listings.push(listing);
-      group.latSum += latNum;
-      group.lngSum += lngNum;
-      group.count += 1;
-    });
-
-    // Calculate city centers
-    const cityCenters = [];
-    cityGroups.forEach((group, cityKey) => {
-      const center = {
-        lat: group.latSum / group.count,
-        lng: group.lngSum / group.count
-      };
-      cityCenters.push({
-        key: cityKey,
-        cityName: group.cityName,
-        center,
-        listings: group.listings,
-        count: group.count
-      });
-    });
-
-    // If zoomed out very far (zoom < 10), merge nearby cities into larger clusters
-    // This creates fewer dots
-    if (zoomLevel < 10 && cityCenters.length > 1) {
-      const mergedClusters = [];
-      const used = new Set();
-      const clusterDistance = 0.15; // ~15km - merge cities within this distance
-
-      cityCenters.forEach((city, index) => {
-        if (used.has(index)) return;
-
-        const cluster = {
-          key: `merged-cluster-${index}`,
-          listings: [...city.listings],
-          latSum: city.center.lat * city.count,
-          lngSum: city.center.lng * city.count,
-          count: city.count,
-          cityNames: [city.cityName]
-        };
-
-        // Find nearby cities to merge
-        cityCenters.forEach((otherCity, otherIndex) => {
-          if (otherIndex === index || used.has(otherIndex)) return;
-
-          const latDiff = Math.abs(city.center.lat - otherCity.center.lat);
-          const lngDiff = Math.abs(city.center.lng - otherCity.center.lng);
-          const distance = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff);
-
-          if (distance <= clusterDistance) {
-            cluster.listings.push(...otherCity.listings);
-            cluster.latSum += otherCity.center.lat * otherCity.count;
-            cluster.lngSum += otherCity.center.lng * otherCity.count;
-            cluster.count += otherCity.count;
-            cluster.cityNames.push(otherCity.cityName);
-            used.add(otherIndex);
-          }
-        });
-
-        used.add(index);
-        mergedClusters.push({
-          key: cluster.key,
-          listings: cluster.listings,
-          center: {
-            lat: cluster.latSum / cluster.count,
-            lng: cluster.lngSum / cluster.count
-          },
-          count: cluster.count,
-          cityName: cluster.cityNames.length === 1
-            ? cluster.cityNames[0]
-            : `${cluster.cityNames[0]} & ${cluster.cityNames.length - 1} more`
-        });
-      });
-
-      return mergedClusters;
-    }
-
-    // If zoomed in more (zoom >= 10), show city-based clusters (one dot per city)
-    return cityCenters.map(city => ({
-      key: `city-cluster-${city.key}`,
-      listings: city.listings,
-      center: city.center,
-      count: city.count,
-      cityName: city.cityName
-    }));
-  }, [validListings, zoomLevel]);
-
-  const center = useMemo(
-    () => ({ lat: mapCenter?.lat ?? defaultCenter.lat, lng: mapCenter?.lng ?? defaultCenter.lng }),
-    [mapCenter]
-  );
-
-  const zoom = useMemo(() => {
-    if (validListings.length === 0) return 8; // Zoomed out view
-    if (validListings.length === 1) return 12; // Single property: moderate zoom
-    // When searching, start with a zoom level that shows individual markers (zoom >= 12)
-    if (searchQuery && searchQuery.trim().length > 0) {
-      return 12; // Zoom in enough to show individual markers when searching
-    }
-    // For multiple properties (not searching), start zoomed out to show city markers
-    return 8; // Start zoomed out (shows city markers by default)
-  }, [validListings.length, searchQuery]);
-
-  // Progressive zoom levels:
-  // - Zoom < 10: Show merged clusters (nearby cities grouped together) - fewer dots
-  // - Zoom 10-11: Show city clusters (one dot per city)
-  // - Zoom >= 12: Show ALL individual properties (no clusters, show individual dots/icons)
-  // After search, ALWAYS show individual properties (don't cluster) so user can see search results
-  const showClusters = useMemo(() => {
-    // NEVER show clusters when searching - always show individual markers
-    if (searchQuery && searchQuery.trim().length > 0) {
-      return false; // Always show individual markers when searching
-    }
-    // Show clusters when zoomed out AND not searching AND have multiple properties
-    return zoomLevel < 12 && validListings.length > 1;
-  }, [zoomLevel, validListings.length, searchQuery]);
-
-  // Show clusters when zoomed out, individual properties when zoomed in
-  // ALWAYS show individual properties when there's a search query (even when zoomed out)
-  const displayedListings = useMemo(() => {
-    // When searching, ALWAYS show individual markers regardless of zoom level
-    if (searchQuery && searchQuery.trim().length > 0) {
-      return validListings; // Always show all search results as individual markers
-    }
-    if (showClusters) return []; // Clusters will be shown instead
-    // Show ALL properties when zoomed in
-    return validListings;
-  }, [validListings, showClusters, searchQuery]);
 
   const onLoad = useCallback(
     (map) => {
@@ -354,13 +234,11 @@ export default memo(function PropertyListingsMapGoogle({ listings = [], mapCente
 
           if (hasValidCoords) {
             // Increased padding to 80px for better visibility of all properties
-            ignoreNextBoundsUpdateRef.current = true;
             map.fitBounds(bounds, { padding: 80, maxZoom: 15 });
             // When not searching, keep zoom below 12 to show city clusters
             setTimeout(() => {
               const zoom = map.getZoom();
               if (zoom && zoom >= 12) {
-                ignoreNextBoundsUpdateRef.current = true;
                 map.setZoom(11);
                 setZoomLevel(11);
               } else {
@@ -369,51 +247,18 @@ export default memo(function PropertyListingsMapGoogle({ listings = [], mapCente
             }, 50);
           } else {
             // Fallback to center if no valid coords
-            map.setCenter(center);
+            map.setCenter(defaultCenter);
             map.setZoom(8);
             setZoomLevel(8);
           }
         }, 100);
       }
 
+      /*
       map.addListener("zoom_changed", () => {
-        // Ignore zoom events caused by programmatic map updates
-        if (ignoreNextBoundsUpdateRef.current) {
-          ignoreNextBoundsUpdateRef.current = false;
-          return;
-        }
-
-        const newZoom = map.getZoom();
-        if (newZoom !== null && newZoom !== undefined) {
-          setZoomLevel(newZoom);
-          // After zoom change, trigger bounds update to ensure properties are visible
-          if (onBoundsChange && mapRef.current) {
-            // Small delay to ensure map has finished zooming
-            setTimeout(() => {
-              const b = mapRef.current?.getBounds();
-              if (b) {
-                const ne = b.getNorthEast();
-                const sw = b.getSouthWest();
-                const pad = 0.02;
-                const latSpan = ne.lat() - sw.lat();
-                const lngSpan = ne.lng() - sw.lng();
-                onBoundsChange({
-                  north: ne.lat() + latSpan * pad,
-                  south: sw.lat() - latSpan * pad,
-                  east: ne.lng() + lngSpan * pad,
-                  west: sw.lng() - lngSpan * pad,
-                });
-              }
-            }, 100);
-          }
-        }
-        // Preserve map type when zooming - don't let it change automatically
-        const currentMapType = map.getMapTypeId();
-        if (currentMapType && currentMapType !== mapTypeId) {
-          // Only update if user manually changed it, otherwise preserve
-          setMapTypeId(currentMapType);
-        }
+        // Redundant with idle listener
       });
+      */
 
       // Listen for map type changes to track user selection
       map.addListener("maptypeid_changed", () => {
@@ -425,12 +270,6 @@ export default memo(function PropertyListingsMapGoogle({ listings = [], mapCente
 
       if (onBoundsChange) {
         const report = () => {
-          // Ignore bounds updates caused by programmatic fitBounds calls
-          if (ignoreNextBoundsUpdateRef.current) {
-            ignoreNextBoundsUpdateRef.current = false;
-            return;
-          }
-
           const b = map.getBounds();
           if (!b) return;
           const ne = b.getNorthEast();
@@ -445,7 +284,7 @@ export default memo(function PropertyListingsMapGoogle({ listings = [], mapCente
             west: sw.lng() - lngSpan * pad,
           });
         };
-        report();
+          // report(); // Duplicate of idle call
         map.addListener("idle", report);
       }
 
@@ -792,33 +631,27 @@ export default memo(function PropertyListingsMapGoogle({ listings = [], mapCente
           // Mark that geocoding is complete - this will allow listings effect to proceed
           zoomSetRef.current = true;
 
-          // If NO properties found, zoom to search location immediately
-          if (validListings.length === 0) {
-            // Check if it's a street/road search - use higher zoom for better visibility
-            const isStreetSearch = addressLower.includes('street') || addressLower.includes('road') ||
-              addressLower.includes('drive') || addressLower.includes('avenue') ||
-              addressLower.includes('boulevard') || addressLower.includes('highway') ||
-              addressLower.includes('lane') || addressLower.includes('way') ||
-              addressLower.includes('bay') || addressLower.includes('cove');
+          // Check if it's a street/road search - use higher zoom for better visibility
+          const isStreetSearch = addressLower.includes('street') || addressLower.includes('road') ||
+            addressLower.includes('drive') || addressLower.includes('avenue') ||
+            addressLower.includes('boulevard') || addressLower.includes('highway') ||
+            addressLower.includes('lane') || addressLower.includes('way') ||
+            addressLower.includes('bay') || addressLower.includes('cove');
 
-            const targetZoom = isStreetSearch ? 18 : 17;
+          const targetZoom = isStreetSearch ? 18 : 15; // Moderate zoom for city, high for street
 
-            // Pan to EXACT search location and zoom in IMMEDIATELY to show the road/location
-            // Use setCenter + setZoom for precise control (not fitBounds)
-            mapRef.current.setCenter({ lat, lng });
-            ignoreNextBoundsUpdateRef.current = true;
-            mapRef.current.setZoom(targetZoom);
-            setZoomLevel(targetZoom);
+          // Pan to EXACT search location and zoom in IMMEDIATELY to show the road/location
+          // Use setCenter + setZoom for precise control (not fitBounds)
+          mapRef.current.setCenter({ lat, lng });
+          ignoreNextBoundsUpdateRef.current = true;
+          mapRef.current.setZoom(targetZoom);
+          setZoomLevel(targetZoom);
 
-            // Ensure map type persists
-            const currentMapType = mapRef.current.getMapTypeId();
-            if (currentMapType) {
-              mapRef.current.setMapTypeId(currentMapType);
-            }
-            return; // Done - no properties to show, just location
+          // Ensure map type persists
+          const currentMapType = mapRef.current.getMapTypeId();
+          if (currentMapType) {
+            mapRef.current.setMapTypeId(currentMapType);
           }
-
-          // If properties exist, listings effect will handle zoom to show both location and properties
         } else {
           // Geocoding failed - silently handle (don't show errors to user)
           // Restore console in case of error
@@ -836,255 +669,9 @@ export default memo(function PropertyListingsMapGoogle({ listings = [], mapCente
         zoomSetRef.current = false; // Reset zoom flag when search clears
       }
     };
-  }, [searchQuery, isLoaded, onBoundsChange, validListings.length, searchLocation?.lat, searchLocation?.lng]);
+  }, [searchQuery, isLoaded]); // Only run when searchQuery changes!!
 
-  // Update map center and zoom when listings change
-  // When searching: zoom in to search location. When not searching: show all properties
-  useEffect(() => {
-    if (!mapRef.current || !isLoaded) return;
-
-    // If searching, prioritize showing search location
-    if (searchQuery && searchQuery.trim().length > 0) {
-      // If no properties, geocoding effect already handled zoom - don't interfere
-      if (validListings.length === 0) {
-        return; // Geocoding effect already set zoom for no properties case
-      }
-
-      // If properties exist, wait for searchLocation to be set (from geocoding)
-      // This ensures we can show the searched location prominently
-      if (!searchLocation) {
-        return; // Wait for geocoding to complete and set searchLocation
-      }
-    } else {
-      // Reset zoom flag when not searching
-      zoomSetRef.current = false;
-    }
-
-    if (validListings.length === 0 && !searchLocation) return;
-
-    // If searching and have properties: PRIORITIZE search location, then include nearby properties
-    // This ensures user sees the exact location they searched for first
-    if (searchQuery && (validListings.length > 0 || searchLocation)) {
-      // Start with search location FIRST (user's primary intent)
-      const bounds = new window.google.maps.LatLngBounds();
-      let hasValidCoords = false;
-
-      // FIRST: Add search location to bounds (this is what user searched for)
-      if (searchLocation) {
-        bounds.extend({ lat: searchLocation.lat, lng: searchLocation.lng });
-        hasValidCoords = true;
-      }
-
-      // THEN: Add properties that are near the search location (within reasonable distance)
-      if (searchLocation) {
-        const searchLat = searchLocation.lat;
-        const searchLng = searchLocation.lng;
-
-        // For Halifax, use larger distance to include all Halifax area properties
-        const isHalifaxSearch = searchQuery && searchQuery.toLowerCase().trim() === 'halifax';
-        const maxDistance = isHalifaxSearch ? 0.2 : 0.1; // ~20km for Halifax, ~10km for others
-
-        validListings.forEach((listing) => {
-          // Check multiple possible coordinate field names
-          const lat = listing.Latitude || listing.LatitudeDecimal || listing.latitude || listing.lat;
-          const lng = listing.Longitude || listing.LongitudeDecimal || listing.longitude || listing.lng || listing.lon;
-          const latNum = lat != null ? parseFloat(lat) : NaN;
-          const lngNum = lng != null ? parseFloat(lng) : NaN;
-
-          if (!isNaN(latNum) && !isNaN(lngNum) && latNum >= -90 && latNum <= 90 && lngNum >= -180 && lngNum <= 180) {
-            // Calculate distance from search location
-            const latDiff = Math.abs(latNum - searchLat);
-            const lngDiff = Math.abs(lngNum - searchLng);
-            const distance = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff);
-
-            // Include properties within maxDistance of search location
-            if (distance < maxDistance) {
-              bounds.extend({ lat: latNum, lng: lngNum });
-            }
-          }
-        });
-      } else {
-        // If no searchLocation yet, use properties (fallback)
-        validListings.forEach((listing) => {
-          const lat = listing.Latitude || listing.LatitudeDecimal || listing.latitude || listing.lat;
-          const lng = listing.Longitude || listing.LongitudeDecimal || listing.longitude || listing.lng || listing.lon;
-          const latNum = lat != null ? parseFloat(lat) : NaN;
-          const lngNum = lng != null ? parseFloat(lng) : NaN;
-          if (!isNaN(latNum) && !isNaN(lngNum) && latNum >= -90 && latNum <= 90 && lngNum >= -180 && lngNum <= 180) {
-            bounds.extend({ lat: latNum, lng: lngNum });
-            hasValidCoords = true;
-          }
-        });
-      }
-
-      if (hasValidCoords) {
-        const currentMapType = mapRef.current.getMapTypeId();
-
-        // Calculate zoom to prioritize search location visibility
-        // For Halifax, use appropriate zoom to show the city area
-        const isHalifaxSearch = searchQuery && searchQuery.toLowerCase().trim() === 'halifax';
-        let minZoom;
-        if (searchLocation) {
-          // When search location exists, zoom in more to show it clearly
-          if (isHalifaxSearch) {
-            // For Halifax, use zoom level that shows the city area well
-            if (validListings.length === 0) {
-              minZoom = 13; // Only search location - show Halifax city area
-            } else if (validListings.length <= 10) {
-              minZoom = 13; // Halifax + some properties - show city area
-            } else if (validListings.length <= 50) {
-              minZoom = 12; // Halifax + many properties - show wider area
-            } else {
-              minZoom = 12; // Halifax + many properties - show wider area
-            }
-          } else {
-            // For other searches, zoom in more
-            if (validListings.length === 0) {
-              minZoom = 18; // Only search location - zoom in very close
-            } else if (validListings.length <= 3) {
-              minZoom = 17; // Search location + few properties - zoom in close
-            } else if (validListings.length <= 10) {
-              minZoom = 16; // Search location + some properties - moderate zoom
-            } else {
-              minZoom = 15; // Search location + many properties - still zoom in
-            }
-          }
-        } else {
-          // No search location, use property-based zoom
-          if (validListings.length === 1) {
-            minZoom = 18;
-          } else if (validListings.length <= 3) {
-            minZoom = 17;
-          } else if (validListings.length <= 10) {
-            minZoom = 16;
-          } else {
-            minZoom = 15;
-          }
-        }
-
-        // Fit bounds to show search location prominently - use less padding for tighter zoom
-        mapRef.current.fitBounds(bounds, { padding: 30, maxZoom: 15 });
-
-        // After fitBounds, ensure minimum zoom level (prevents zooming out too much)
-        // Do this IMMEDIATELY for faster response
-        setTimeout(() => {
-          if (mapRef.current) {
-            const currentZoom = mapRef.current.getZoom();
-            // Always ensure we're zoomed in enough to see the search location clearly
-            if (currentZoom && currentZoom < minZoom) {
-              mapRef.current.setZoom(minZoom);
-              setZoomLevel(minZoom);
-            } else if (currentZoom) {
-              setZoomLevel(currentZoom);
-            }
-            // Mark that zoom is complete - prevent further adjustments
-            zoomSetRef.current = true;
-          }
-        }, 100); // Faster response - reduced delay
-
-        if (currentMapType) {
-          mapRef.current.setMapTypeId(currentMapType);
-        }
-        return;
-      }
-    }
-
-    // Don't run these effects if searching - let search effects handle it
-    if (searchQuery && searchQuery.trim().length > 0) {
-      return;
-    }
-
-    // Single property: zoom to it at moderate level
-    if (validListings.length === 1) {
-      const listing = validListings[0];
-      // Check multiple possible coordinate field names
-      const lat = listing.Latitude || listing.LatitudeDecimal || listing.latitude || listing.lat;
-      const lng = listing.Longitude || listing.LongitudeDecimal || listing.longitude || listing.lng || listing.lon;
-      const latNum = lat != null ? parseFloat(lat) : NaN;
-      const lngNum = lng != null ? parseFloat(lng) : NaN;
-      if (!isNaN(latNum) && !isNaN(lngNum)) {
-        const currentMapType = mapRef.current.getMapTypeId();
-        mapRef.current.setCenter({ lat: latNum, lng: lngNum });
-        mapRef.current.setZoom(14);
-        if (currentMapType) {
-          mapRef.current.setMapTypeId(currentMapType);
-        }
-      }
-      return;
-    }
-
-    // Multiple properties and NOT searching: fit bounds to show ALL properties (as city clusters)
-    // Use setTimeout to ensure map is fully ready
-    const timeoutId = setTimeout(() => {
-      if (!mapRef.current) return;
-
-      const bounds = new window.google.maps.LatLngBounds();
-      let hasValidCoords = false;
-
-      // Add all property locations to bounds
-      validListings.forEach((listing) => {
-        // Check multiple possible coordinate field names
-        const lat = listing.Latitude || listing.LatitudeDecimal || listing.latitude || listing.lat;
-        const lng = listing.Longitude || listing.LongitudeDecimal || listing.longitude || listing.lng || listing.lon;
-        const latNum = lat != null ? parseFloat(lat) : NaN;
-        const lngNum = lng != null ? parseFloat(lng) : NaN;
-        if (!isNaN(latNum) && !isNaN(lngNum) && latNum >= -90 && latNum <= 90 && lngNum >= -180 && lngNum <= 180) {
-          bounds.extend({ lat: latNum, lng: lngNum });
-          hasValidCoords = true;
-        }
-      });
-
-      if (hasValidCoords) {
-        try {
-          const currentMapType = mapRef.current.getMapTypeId();
-          // Fit bounds with padding to ensure all properties are visible
-          // When showing clusters, ensure zoom stays below 12 to show city dots
-          ignoreNextBoundsUpdateRef.current = true;
-          mapRef.current.fitBounds(bounds, { padding: 80, maxZoom: 15 });
-
-          // If zoomed in too much (above 11), zoom out to show clusters
-          setTimeout(() => {
-            if (mapRef.current && !searchQuery) {
-              const currentZoom = mapRef.current.getZoom();
-              if (currentZoom && currentZoom >= 12) {
-                // Zoom out to show city clusters
-                ignoreNextBoundsUpdateRef.current = true;
-                mapRef.current.setZoom(11);
-              }
-            }
-          }, 100);
-
-          if (currentMapType) {
-            mapRef.current.setMapTypeId(currentMapType);
-          }
-        } catch (error) {
-          // If fitBounds fails, try again with a longer delay
-          console.warn("fitBounds failed, retrying...", error);
-          setTimeout(() => {
-            if (mapRef.current) {
-              try {
-                mapRef.current.fitBounds(bounds, { padding: 80, maxZoom: 15 });
-                // Ensure zoom stays below 12 for clusters
-                setTimeout(() => {
-                  if (mapRef.current && !searchQuery) {
-                    const currentZoom = mapRef.current.getZoom();
-                    if (currentZoom && currentZoom >= 12) {
-                      ignoreNextBoundsUpdateRef.current = true;
-                      mapRef.current.setZoom(11);
-                    }
-                  }
-                }, 100);
-              } catch (e) {
-                console.error("fitBounds retry failed", e);
-              }
-            }
-          }, 200);
-        }
-      }
-    }, 150); // Small delay to ensure map is ready
-
-    return () => clearTimeout(timeoutId);
-  }, [validListings, searchQuery, isLoaded, searchLocation]);
+  // Map viewport is driven by user interaction and searches, NOT by the properties list.
 
   if (!apiKey) {
     return (
@@ -1171,8 +758,8 @@ export default memo(function PropertyListingsMapGoogle({ listings = [], mapCente
     >
       <GoogleMap
         mapContainerStyle={MAP_CONTAINER_STYLE}
-        center={center}
-        zoom={zoom}
+        center={mapCenter || defaultCenter}
+        zoom={zoomLevel}
         onLoad={onLoad}
         onUnmount={onUnmount}
         options={{
@@ -1247,228 +834,104 @@ export default memo(function PropertyListingsMapGoogle({ listings = [], mapCente
           ],
         }}
       >
-        {showClusters
-          ? clusters.map((cluster) => (
-            <Marker
-              key={cluster.key}
-              position={cluster.center}
-              icon={{
-                url: createCityIconSVG(cluster.count),
-                scaledSize: { width: cluster.count > 50 ? 40 : cluster.count > 20 ? 36 : 32, height: cluster.count > 50 ? 40 : cluster.count > 20 ? 36 : 32 },
-                anchor: { x: cluster.count > 50 ? 20 : cluster.count > 20 ? 18 : 16, y: cluster.count > 50 ? 20 : cluster.count > 20 ? 18 : 16 },
-              }}
-              onClick={() => {
-                const isCurrentlySelected = selectedCityKey === cluster.key;
-                setSelectedCityKey(isCurrentlySelected ? null : cluster.key);
-                // Auto-zoom to cluster when clicked (if not already selected)
-                if (mapRef.current && !isCurrentlySelected) {
-                  mapRef.current.setCenter(cluster.center);
-                  mapRef.current.setZoom(12); // Zoom in to show individual properties
-                }
-              }}
-            >
-              {selectedCityKey === cluster.key && (
-                <InfoWindow
-                  position={cluster.center}
-                  onCloseClick={() => setSelectedCityKey(null)}
-                >
-                  <div className="p-3 min-w-[180px]">
-                    <p className="font-bold text-[#091D35] text-base mb-1">
-                      {cluster.count} Propert{cluster.count === 1 ? "y" : "ies"}
-                    </p>
-                    <p className="text-sm text-gray-700 font-medium">
-                      {cluster.cityName || "Area"}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-2 italic">
-                      Click marker to zoom in and see all listings
-                    </p>
-                  </div>
-                </InfoWindow>
-              )}
-            </Marker>
-          ))
-          : displayedListings.map((listing, index) => {
-            // Debug logging removed to prevent excessive re-renders
-
-            // Check multiple possible coordinate field names
-            const lat = listing.Latitude || listing.LatitudeDecimal || listing.latitude || listing.lat;
-            const lng = listing.Longitude || listing.LongitudeDecimal || listing.longitude || listing.lng || listing.lon;
-            const latNum = lat != null ? parseFloat(lat) : NaN;
-            const lngNum = lng != null ? parseFloat(lng) : NaN;
-
-            if (isNaN(latNum) || isNaN(lngNum) || latNum < -90 || latNum > 90 || lngNum < -180 || lngNum > 180) {
-              if (searchQuery && searchQuery.trim().length > 0) {
-                console.warn("⚠️ Invalid coordinates for listing:", {
-                  id: listing.ListingId || listing.Id,
-                  lat: listing.Latitude || listing.LatitudeDecimal,
-                  lng: listing.Longitude || listing.LongitudeDecimal
-                });
+        <MarkerClusterer
+          options={{
+            gridSize: 60,
+            maxZoom: 15,
+            styles: [
+              {
+                textColor: 'white',
+                url: 'data:image/svg+xml;charset=UTF-8,%3Csvg xmlns="http://www.w3.org/2000/svg" width="40" height="40"%3E%3Ccircle cx="20" cy="20" r="18" fill="%23091d35" stroke="white" stroke-width="2"/%3E%3C/svg%3E',
+                height: 40,
+                width: 40,
+                textSize: 14,
+                fontWeight: '700'
               }
-              return null;
-            }
-            const id = listing.ListingId || listing.Id || index;
-            const streetNum = getStreetNumber(listing);
-            const price = listing.ListPrice
-              ? `$${parseInt(listing.ListPrice).toLocaleString()}`
-              : "Price on request";
-            const address =
-              listing.UnparsedAddress ||
-              `${listing.StreetNumber || ""} ${listing.StreetName || ""}`.trim() ||
-              `${listing.City || ""}, ${listing.Province || "NS"}`.trim();
-            const beds = listing.BedroomsTotal || "N/A";
-            const baths = listing.BathroomsTotalInteger || listing.BathroomsTotal || "N/A";
-            const sqft =
-              listing.BuildingAreaTotal || listing.LivingArea || listing.AboveGradeFinishedArea;
-            const mls = listing.ListingId || listing.MlsNumber || listing.Id;
+            ]
+          }}
+        >
+          {(clusterer) => (
+            <>
+              {validListings.map((listing, index) => (
+                <PriceMarker
+                  key={`prop-pin-${listing.ListingId || listing.Id || index}`}
+                  listing={listing}
+                  clusterer={clusterer}
+                  isSelected={selectedId === (listing.ListingId || listing.Id)}
+                  onClick={(id) => setSelectedId(selectedId === id ? null : id)}
+                />
+              ))}
+              
+              {/* Separate InfoWindow for selected item to avoid Marker re-renders */}
+              {selectedId && !String(selectedId).startsWith('search-') && (() => {
+                const listing = validListings.find(l => (l.ListingId || l.Id) === selectedId);
+                if (!listing) return null;
+                
+                const lat = listing.Latitude || listing.LatitudeDecimal || listing.latitude || listing.lat;
+                const lng = listing.Longitude || listing.LongitudeDecimal || listing.longitude || listing.lng || listing.lon;
+                const latNum = parseFloat(lat);
+                const lngNum = parseFloat(lng);
+                if (isNaN(latNum) || isNaN(lngNum)) return null;
 
-            // Determine if property is sold or available
-            const status = listing.StandardStatus || listing.Status || "";
-            const isSold = status.toLowerCase().includes("sold") ||
-              status.toLowerCase().includes("closed") ||
-              status.toLowerCase().includes("pending");
-            const isAvailable = !isSold && (status.toLowerCase().includes("active") ||
-              status.toLowerCase().includes("available") ||
-              status === "");
+                const isFromSellAPI = listing.MlsStatus === "Sold" || listing.source === 'sell' || listing.ListingId?.startsWith('SELL-');
+                const isSold = isFromSellAPI || listing.StandardStatus === 'Closed' || listing.MlsStatus === 'Closed';
+                const priceValue = listing.ListPrice || listing.ClosePrice || listing.Price;
+                const priceLabel = formatPriceLabel(priceValue) || "N/A";
+                const address = listing.UnparsedAddress || listing.AddressLine1 || "No Address";
+                const beds = listing.BedroomsTotal || 0;
+                const baths = listing.BathroomsTotalInteger || listing.BathroomsTotal || 0;
+                const sqft = listing.LivingArea || listing.BuildingAreaTotal || 0;
+                const imageUrl = listing.Media?.[0]?.MediaURL || listing.Photos?.[0] || "/images/placeholder.jpg";
+                
+                const detailUrl = listing.friendlyUrl ? `/properties/${listing.friendlyUrl}`
+                  : `/properties/${selectedId}?address=${encodeURIComponent(address)}`;
 
-            // Check if property is from sell API (sold properties)
-            const isFromSellAPI = listing.isFromSellAPI === true;
-
-            // Choose marker icon based on zoom level:
-            // - Zoom < 12: Simple dots (blue/red/orange)
-            // - Zoom >= 12: Blue pinpoint icon (detailed view)
-            const usePinpointIcon = zoomLevel >= 12;
-
-            let markerIcon;
-            let iconSize;
-            let iconAnchor;
-
-            if (usePinpointIcon) {
-              // Use blue pinpoint icon when zoomed in
-              markerIcon = BLUE_PINPOINT_ICON_SVG;
-              iconSize = { width: 32, height: 40 };
-              iconAnchor = { x: 16, y: 40 };
-            } else {
-              // Use dots when zoomed out
-              // Orange for sold properties from sell API
-              // Red for sold properties from buy API
-              // Blue for available properties
-              markerIcon = isFromSellAPI
-                ? ORANGE_DOT_ICON_SVG
-                : (isSold ? RED_DOT_ICON_SVG : BLUE_DOT_ICON_SVG);
-              iconSize = { width: 14, height: 14 };
-              iconAnchor = { x: 7, y: 7 };
-            }
-
-            // Get property image - try multiple sources
-            const imageUrl =
-              listing.Image ||
-              listing.Media?.[0]?.MediaURL ||
-              listing.Media?.[0]?.MediaURLThumb ||
-              listing.Photos?.[0]?.Url ||
-              listing.Photos?.[0]?.ThumbnailUrl ||
-              listing.PhotoUrl ||
-              listing.ThumbnailUrl ||
-              "/images/placeholder.jpg";
-            const citySlug = encodeURIComponent(
-              (listing.City || "nova-scotia").toLowerCase().replace(/\s+/g, "-")
-            );
-            const detailUrl = `/buy/${citySlug}/${listing.ListingId || listing.Id}`;
-
-            // Create label text - show street number or short address when zoomed in (zoom >= 16)
-            const shortAddress = address.split(',')[0].trim();
-            const labelText = zoomLevel >= 16
-              ? (streetNum || (shortAddress.length > 20 ? shortAddress.substring(0, 20) + "..." : shortAddress))
-              : "";
-
-            return (
-              <Marker
-                key={id}
-                position={{ lat: latNum, lng: lngNum }}
-                icon={{
-                  url: markerIcon,
-                  scaledSize: iconSize,
-                  anchor: iconAnchor,
-                }}
-                label={labelText ? {
-                  text: labelText,
-                  color: "#091D35",
-                  fontSize: "11px",
-                  fontWeight: "600",
-                  className: "property-label"
-                } : undefined}
-                onClick={() => {
-                  setSelectedId(selectedId === id ? null : id);
-                }}
-                cursor="pointer"
-              >
-                {selectedId === id && (
+                return (
                   <InfoWindow
                     position={{ lat: latNum, lng: lngNum }}
                     onCloseClick={() => setSelectedId(null)}
                     options={{
                       maxWidth: 320,
-                      pixelOffset: new window.google.maps.Size(0, -10), // Small offset above the dot
-                      disableAutoPan: true, // Don't auto pan - show at same position
-                      enableEventPropagation: false,
+                      pixelOffset: new window.google.maps.Size(0, -34),
+                      disableAutoPan: true,
                     }}
                   >
                     <div style={{ width: '300px', maxWidth: '300px', overflow: 'hidden' }} className="p-0 bg-white shadow-xl border border-gray-200">
-                      {/* Property Image - Smaller to fit without scroll */}
-                      {imageUrl && imageUrl !== "/images/placeholder.jpg" ? (
-                        <div style={{ width: '100%', height: '180px', overflow: 'hidden', position: 'relative', backgroundColor: '#f3f4f6' }}>
-                          <img
-                            src={imageUrl}
-                            alt={address || "Property"}
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                              if (e.target.nextElementSibling) {
-                                e.target.nextElementSibling.style.display = 'flex';
-                              }
-                            }}
-                          />
-                          <div style={{ display: 'none', width: '100%', height: '100%', background: 'linear-gradient(to bottom right, #e5e7eb, #d1d5db)', alignItems: 'center', justifyContent: 'center', position: 'absolute', top: 0, left: 0 }}>
-                            <p style={{ color: '#6b7280', fontSize: '12px' }}>No Image</p>
-                          </div>
-                          <div style={{ position: 'absolute', top: '6px', right: '6px', backgroundColor: isFromSellAPI ? '#f97316' : (isSold ? '#dc2626' : '#091d35'), color: 'white', fontSize: '10px', fontWeight: '600', padding: '3px 6px', borderRadius: '3px' }}>
-                            {isFromSellAPI ? 'Sold (Sell API)' : (isSold ? 'Sold' : 'For Sale')}
-                          </div>
+                      {/* Property Image */}
+                      <div style={{ width: '100%', height: '180px', overflow: 'hidden', position: 'relative', backgroundColor: '#f3f4f6' }}>
+                        <img
+                          src={imageUrl}
+                          alt={address}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          onError={(e) => { e.target.src = "/images/placeholder.jpg"; }}
+                        />
+                        <div style={{ position: 'absolute', top: '6px', right: '6px', backgroundColor: isSold ? '#dc2626' : '#091d35', color: 'white', fontSize: '10px', fontWeight: '600', padding: '3px 6px', borderRadius: '3px' }}>
+                          {isSold ? 'Sold' : 'For Sale'}
                         </div>
-                      ) : (
-                        <div style={{ width: '100%', height: '180px', background: 'linear-gradient(to bottom right, #e5e7eb, #d1d5db)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <p style={{ color: '#6b7280', fontSize: '12px' }}>No Image Available</p>
-                        </div>
-                      )}
+                      </div>
 
-                      {/* Property Details - Compact to fit without scroll */}
+                      {/* Property Details */}
                       <div style={{ padding: '12px' }}>
-                        <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#091D35', marginBottom: '6px', lineHeight: '1.2', marginTop: 0 }}>{price}</h3>
+                        <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#091D35', marginBottom: '6px', lineHeight: '1.2', marginTop: 0 }}>
+                          {priceLabel}
+                        </h3>
                         <p style={{ fontSize: '13px', color: '#374151', fontWeight: '600', marginBottom: '10px', lineHeight: '1.3' }}>{address}</p>
 
-                        {/* Property Features */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#4b5563', marginBottom: '10px', paddingBottom: '10px', borderBottom: '1px solid #e5e7eb', flexWrap: 'wrap' }}>
                           <span style={{ fontWeight: '600' }}>{beds}</span>
                           <span>bed{beds !== 1 ? "s" : ""}</span>
                           <span>·</span>
                           <span style={{ fontWeight: '600' }}>{baths}</span>
                           <span>bath{baths !== 1 ? "s" : ""}</span>
-                          {sqft && (
+                          {sqft ? (
                             <>
                               <span>·</span>
                               <span style={{ fontWeight: '600' }}>{Number(sqft).toLocaleString()}</span>
                               <span>sqft</span>
                             </>
-                          )}
+                          ) : null}
                         </div>
 
-                        {/* MLS Number */}
-                        {mls && (
-                          <p style={{ fontSize: '11px', color: '#6b7280', marginBottom: '10px', marginTop: 0 }}>
-                            <span style={{ fontWeight: '500' }}>MLS®:</span> {mls}
-                          </p>
-                        )}
-
-                        {/* View Details Button */}
                         <a
                           href={detailUrl}
                           style={{
@@ -1482,18 +945,7 @@ export default memo(function PropertyListingsMapGoogle({ listings = [], mapCente
                             fontWeight: '600',
                             borderRadius: '6px',
                             textDecoration: 'none',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                            transition: 'background-color 0.2s',
                             marginTop: 0,
-                          }}
-                          onMouseEnter={(e) => {
-                            e.target.style.backgroundColor = '#0a2540';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.target.style.backgroundColor = '#091D35';
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
                           }}
                         >
                           View Full Details →
@@ -1501,42 +953,49 @@ export default memo(function PropertyListingsMapGoogle({ listings = [], mapCente
                       </div>
                     </div>
                   </InfoWindow>
-                )}
-              </Marker>
-            );
-          })}
+                );
+              })()}
+            </>
+          )}
+        </MarkerClusterer>
 
         {/* Search Location Marker - Show ONLY when no properties exist at/near the searched location */}
         {(() => {
           // Check if we should show search location marker
-          if (!searchLocation || !searchQuery) return false;
+          if (!searchLocation || !searchQuery) return null;
 
           // If no properties, always show search location marker
-          if (validListings.length === 0) return true;
+          let showMarker = false;
+          if (validListings.length === 0) {
+            showMarker = true;
+          } else {
+            // Check if any property is very close to the search location (within ~1km)
+            const searchLat = searchLocation.lat;
+            const searchLng = searchLocation.lng;
+            const closeDistance = 0.01; // ~1km - very close
 
-          // Check if any property is very close to the search location (within ~1km)
-          const searchLat = searchLocation.lat;
-          const searchLng = searchLocation.lng;
-          const closeDistance = 0.01; // ~1km - very close
+            const hasPropertyNearby = validListings.some((listing) => {
+              const lat = listing.Latitude || listing.LatitudeDecimal || listing.latitude || listing.lat;
+              const lng = listing.Longitude || listing.LongitudeDecimal || listing.longitude || listing.lng || listing.lon;
+              const latNum = lat != null ? parseFloat(lat) : NaN;
+              const lngNum = lng != null ? parseFloat(lng) : NaN;
 
-          const hasPropertyNearby = validListings.some((listing) => {
-            const lat = listing.Latitude || listing.LatitudeDecimal || listing.latitude || listing.lat;
-            const lng = listing.Longitude || listing.LongitudeDecimal || listing.longitude || listing.lng || listing.lon;
-            const latNum = lat != null ? parseFloat(lat) : NaN;
-            const lngNum = lng != null ? parseFloat(lng) : NaN;
+              if (!isNaN(latNum) && !isNaN(lngNum)) {
+                const latDiff = Math.abs(latNum - searchLat);
+                const lngDiff = Math.abs(lngNum - searchLng);
+                const distance = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff);
+                return distance < closeDistance;
+              }
+              return false;
+            });
 
-            if (!isNaN(latNum) && !isNaN(lngNum)) {
-              const latDiff = Math.abs(latNum - searchLat);
-              const lngDiff = Math.abs(lngNum - searchLng);
-              const distance = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff);
-              return distance < closeDistance;
-            }
-            return false;
-          });
+            // Show search location marker only if NO property is nearby
+            showMarker = !hasPropertyNearby;
+          }
 
-          // Show search location marker only if NO property is nearby
-          return !hasPropertyNearby;
-        })() && searchLocation && searchQuery && (
+          if (!showMarker) return null;
+
+          return (
             <Marker
               position={searchLocation}
               icon={{
@@ -1582,7 +1041,8 @@ export default memo(function PropertyListingsMapGoogle({ listings = [], mapCente
                 </InfoWindow>
               )}
             </Marker>
-          )}
+          );
+        })()}
       </GoogleMap>
     </div>
   );

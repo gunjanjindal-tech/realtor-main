@@ -124,13 +124,7 @@ export default function BuyRegions({ onSelectCity }) {
               <button
                 key={region.name}
                 onClick={() => handleCitySelect(region.name)}
-                className="
-                  snap-start min-w-[260px]
-                  rounded-2xl overflow-hidden
-                  bg-white border border-gray-200
-                  transition-all duration-300
-                  hover:-translate-y-1 hover:shadow-xl
-                "
+                className="snap-start min-w-[260px] rounded-2xl overflow-hidden bg-white border border-gray-200 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
               >
                 <div className="relative h-44">
                   <img
@@ -179,23 +173,11 @@ export default function BuyRegions({ onSelectCity }) {
                 key={region.name}
                 onMouseEnter={() => setActive(region)}
                 onClick={() => handleCitySelect(region.name)}
-                className="
-    group relative 
-    overflow-hidden rounded-2xl border border-gray-200 bg-white p-6
-        transition-all duration-300
-        hover:-translate-y-1 hover:border-red-500 hover:shadow-xl
-
-        sm:min-w-0 
-  "
+                className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 transition-all duration-300 hover:-translate-y-1 hover:border-red-500 hover:shadow-xl sm:min-w-0"
               >
                 {/* HOVER GRADIENT (SAME AS COMMUNITIES) */}
                 <div
-                  className="
-    pointer-events-none absolute inset-0
-    bg-gradient-to-br from-red-50 via-white to-transparent
-    opacity-0 transition-opacity duration-300
-    group-hover:opacity-100
-  "
+                  className="pointer-events-none absolute inset-0 bg-gradient-to-br from-red-50 via-white to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"
                 />
 
                 <div className="relative flex items-center justify-between">

@@ -27,7 +27,8 @@ export async function GET(req) {
   const { searchParams } = new URL(req.url);
 
   const page = Number(searchParams.get("page") || 1);
-  const limit = Number(searchParams.get("limit") || 9);
+  const limitParam = searchParams.get("limit") || searchParams.get("$top") || "9";
+  const limit = (limitParam === "max" || limitParam === "all") ? 200 : Number(limitParam);
   const city = searchParams.get("city");
   const query = searchParams.get("q") || searchParams.get("query") || "";
   const minPrice = searchParams.get("minPrice");
@@ -40,7 +41,7 @@ export async function GET(req) {
   const east = searchParams.get("east");
   const west = searchParams.get("west");
 
-  const skip = (page - 1) * limit;
+  const skip = (page - 1) * (isNaN(limit) ? 9 : limit);
 
   // Build OData $filter query
   const filterParts = [
@@ -137,90 +138,113 @@ export async function GET(req) {
 
   const filterQuery = filterParts.join(" and ");
   
-  // Bridge API has a maximum $top value of 200
-  const topLimit = Math.min(limit, 200);
+  // Zillow-style Architecture:
+  // 1. countOnly=true -> Return only the total count (uses $top=0 for speed)
+  // 2. pinsOnly=true -> Return only minimal data for many properties (up to 5000) for map clustering
+  // 3. Standard -> Return a detailed set of listings for the sidebar (typically 40 per page)
+  const countOnly = searchParams.get("countOnly") === "true";
+  const pinsOnly = searchParams.get("pinsOnly") === "true";
   
-  // Try Listings first, fallback to Properties if needed
-  // Use OData syntax: $top, $skip, $filter
-  // Note: $expand=Media is not supported, will fetch media separately if needed
-  // OData standard response uses 'value' array, not 'bundle'
-  let endpoint = `/${DATASET_ID}/Listings?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}`;
+  const requestedLimit = searchParams.get("limit") || searchParams.get("$top");
+  let topLimit;
+  
+  if (countOnly) {
+    topLimit = 0;
+  } else if (pinsOnly) {
+    topLimit = 200; // MUST cap at 200 per request to avoid API error
+  } else {
+    topLimit = Math.min(Number(requestedLimit || 40), 200); // Sidebar page size
+  }
+
+  // Use $count=true to get the full dataset size regardless of $top
+  const selectQuery = pinsOnly ? "&$select=ListingId,Latitude,Longitude,ListPrice,StandardStatus,MlsStatus" : "";
+  let endpoint = `/${DATASET_ID}/Listings?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}&$count=true${selectQuery}`;
 
   try {
-    // Suppress verbose logging
-    // if (process.env.NODE_ENV === "development") {
-    //   console.log("🔍 Fetching from endpoint:", endpoint);
-    // }
     let data;
-    
-    try {
-      data = await bridgeFetch(endpoint);
-    } catch (listingsError) {
-      // If Listings fails with 404, try Properties endpoint (expected fallback)
-      if (listingsError.message.includes("404") || listingsError.message.includes("Invalid resource")) {
-        // Suppress expected fallback logging
-        // if (process.env.NODE_ENV === "development") {
-        //   console.log("⚠️ Listings endpoint failed, trying Properties...");
-        // }
-        endpoint = `/${DATASET_ID}/Properties?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}`;
+    let pinsData = [];
+
+    // For pinsOnly, we fetch multiple pages in parallel to get up to 1000 results
+    // while strictly respecting the 200-item per-request limit.
+    if (pinsOnly) {
+      const pageOffsets = [0, 200, 400, 600, 800]; // 5 pages of 200 = 1000 results
+      const fetchPromises = pageOffsets.map(offset => {
+        const pEndpoint = `/${DATASET_ID}/Listings?$top=200&$skip=${skip + offset}&$filter=${encodeURIComponent(filterQuery)}&$count=true${selectQuery}`;
+        return bridgeFetch(pEndpoint).catch(async (err) => {
+          // Fallback to Properties for each page if Listings fails
+          if (err.message.includes("404") || err.message.includes("Invalid resource")) {
+            const propEndpoint = `/${DATASET_ID}/Properties?$top=200&$skip=${skip + offset}&$filter=${encodeURIComponent(filterQuery)}&$count=true${selectQuery}`;
+            return bridgeFetch(propEndpoint);
+          }
+          throw err;
+        });
+      });
+
+      const results = await Promise.all(fetchPromises);
+      data = results[0]; // Use first page for metadata (total count)
+      pinsData = results.flatMap(r => r.value || r.bundle || []);
+    } else {
+      try {
         data = await bridgeFetch(endpoint);
-      } else {
-        throw listingsError;
+      } catch (listingsError) {
+        if (listingsError.message.includes("404") || listingsError.message.includes("Invalid resource")) {
+          endpoint = `/${DATASET_ID}/Properties?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}&$count=true${selectQuery}`;
+          data = await bridgeFetch(endpoint);
+        } else {
+          throw listingsError;
+        }
       }
     }
-    if (process.env.NODE_ENV === "development") {
-      console.log("✅ API Response received:", {
-        hasValue: !!data.value,
-        hasBundle: !!data.bundle,
-        valueLength: data.value?.length || 0,
-        bundleLength: data.bundle?.length || 0,
-        odataCount: data["@odata.count"],
-        keys: Object.keys(data),
-      });
+
+    const total = Number(data["@odata.count"] || data["@count"] || data.total || 0);
+
+    // If countOnly was requested, return immediately
+    if (countOnly) {
+      return Response.json({ total, listings: [] });
     }
 
-    // OData standard uses 'value' array, but some APIs use 'bundle'
-    // 🔥 SANITIZE RESPONSE (VERY IMPORTANT)
-    const listings = (data.value || data.bundle || []).map((item) => ({
-      ListingId: item.ListingId,
-      Id: item.Id,
+    const listingsFromAllPages = pinsOnly ? pinsData : (data.value || data.bundle || []);
+    const listings = listingsFromAllPages.map((item) => {
+      // Common fields
+      const base = {
+        ListingId: item.ListingId,
+        Id: item.Id,
+        ListPrice: item.ListPrice,
+        Latitude: item.Latitude || item.LatitudeDecimal,
+        Longitude: item.Longitude || item.LongitudeDecimal,
+        StandardStatus: item.StandardStatus || item.Status || "Active",
+        MlsStatus: item.MlsStatus || item.Status || "Active",
+      };
 
-      ListPrice: item.ListPrice,
-      City: item.City,
-      Province: item.Province,
-      UnparsedAddress: item.UnparsedAddress,
+      if (pinsOnly) return base;
 
-      BedroomsTotal: item.BedroomsTotal,
-      BathroomsTotalInteger: item.BathroomsTotalInteger,
-
-      // SQ FT
-      BuildingAreaTotal: item.BuildingAreaTotal,
-      LivingArea: item.LivingArea,
-
-      // Status for map color coding (Sold vs Available)
-      StandardStatus: item.StandardStatus || item.Status || "Active",
-      Status: item.Status || item.StandardStatus || "Active",
-
-      // Coordinates for map
-      Latitude: item.Latitude || item.LatitudeDecimal,
-      Longitude: item.Longitude || item.LongitudeDecimal,
-
-      // Image - Media might be in different fields or need separate API call
-      Image:
-        item.Media?.[0]?.MediaURL ||
-        item.Media?.[0]?.MediaURLThumb ||
-        item.Photos?.[0]?.Uri ||
-        item.PhotoUrl ||
-        null,
-    }));
+      // Full details for sidebar
+      return {
+        ...base,
+        City: item.City,
+        Province: item.Province,
+        UnparsedAddress: item.UnparsedAddress,
+        BedroomsTotal: item.BedroomsTotal,
+        BathroomsTotalInteger: item.BathroomsTotalInteger,
+        BuildingAreaTotal: item.BuildingAreaTotal,
+        LivingArea: item.LivingArea,
+        Status: item.Status || item.StandardStatus || "Active",
+        Image:
+          item.Media?.[0]?.MediaURL ||
+          item.Media?.[0]?.MediaURLThumb ||
+          item.Photos?.[0]?.Uri ||
+          item.PhotoUrl ||
+          null,
+      };
+    });
 
     // OData standard: @odata.count contains total count
-    const total = data["@odata.count"] || data["@count"] || data.total || listings.length;
+    const finalTotal = data["@odata.count"] || data["@count"] || data.total || listings.length;
 
     return Response.json(
       {
         listings,
-        total,
+        total: finalTotal,
         rawData: process.env.NODE_ENV === "development" ? {
           responseKeys: Object.keys(data),
           sampleItem: data.value?.[0] || data.bundle?.[0] || null,

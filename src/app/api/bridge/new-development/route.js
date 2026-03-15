@@ -28,11 +28,12 @@ export async function GET(req) {
   const { searchParams } = new URL(req.url);
 
   const page = Number(searchParams.get("page") || 1);
-  const limit = Number(searchParams.get("limit") || 9);
+  const limitParam = searchParams.get("limit") || searchParams.get("$top") || "9";
+  const limit = (limitParam === "max" || limitParam === "all") ? 200 : Number(limitParam);
   const city = searchParams.get("city");
   const query = searchParams.get("q") || searchParams.get("query") || "";
 
-  const skip = (page - 1) * limit;
+  const skip = (page - 1) * (isNaN(limit) ? 9 : limit);
 
   // Build OData $filter query for New Development
   // New Development typically means new construction or pre-construction
@@ -100,124 +101,125 @@ export async function GET(req) {
 
   const filterQuery = filterParts.join(" and ");
   
-  // Bridge API has a maximum $top value of 200
-  const topLimit = Math.min(limit, 200);
+  // Zillow-style Architecture:
+  // 1. countOnly=true -> Return only the total count (uses $top=0 for speed)
+  // 2. pinsOnly=true -> Return only minimal data for many properties (up to 5000) for map clustering
+  // 3. Standard -> Return a detailed set of listings for the sidebar (typically 40 per page)
+  const countOnly = searchParams.get("countOnly") === "true";
+  const pinsOnly = searchParams.get("pinsOnly") === "true";
   
-  // $count=true so Bridge returns @odata.count and we show correct total / pagination (sab property)
-  let endpoint = `/${DATASET_ID}/Listings?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}&$count=true`;
+  const requestedLimit = searchParams.get("limit") || searchParams.get("$top");
+  let topLimit;
+  
+  if (countOnly) {
+    topLimit = 0;
+  } else if (pinsOnly) {
+    topLimit = 200; // MUST cap at 200 per request to avoid API error
+  } else {
+    topLimit = Math.min(Number(requestedLimit || 40), 200); // Sidebar page size
+  }
+
+  // Use OData syntax: $top, $skip, $filter
+  const selectQuery = pinsOnly ? "&$select=ListingId,Latitude,Longitude,ListPrice,StandardStatus" : "";
+  let endpoint = `/${DATASET_ID}/Listings?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}&$count=true${selectQuery}`;
 
   try {
-    if (process.env.NODE_ENV === "development") {
-      console.log("🔍 [NEW-DEV] Fetching from endpoint:", endpoint);
-    }
     let data;
-    
-    try {
-      data = await bridgeFetch(endpoint);
-    } catch (listingsError) {
-      // If Listings fails with 404, try Properties endpoint
-      if (listingsError.message.includes("404") || listingsError.message.includes("Invalid resource")) {
-        endpoint = `/${DATASET_ID}/Properties?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}&$count=true`;
-        data = await bridgeFetch(endpoint);
-      } else if (listingsError.message.includes("400") || listingsError.message.includes("Bad Request")) {
-        // If filter fails (e.g., YearBuilt or tolower not available), try simpler filter
-        const simpleFilterParts = [
-          "PropertyType eq 'Residential'",
-          "StandardStatus eq 'Active'"
-        ];
-        const simpleCityFilter = buildCityFilter(city);
-        if (simpleCityFilter) simpleFilterParts.push(simpleCityFilter);
-        const simpleFilter = simpleFilterParts.join(" and ");
-        endpoint = `/${DATASET_ID}/Listings?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(simpleFilter)}&$count=true`;
-        
-        try {
-          data = await bridgeFetch(endpoint);
-        } catch (simpleError) {
-          if (simpleError.message.includes("404") || simpleError.message.includes("Invalid resource")) {
-            endpoint = `/${DATASET_ID}/Properties?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(simpleFilter)}&$count=true`;
-            data = await bridgeFetch(endpoint);
-          } else {
-            throw simpleError;
+    let pinsData = [];
+
+    // For pinsOnly, we fetch multiple pages in parallel to get up to 1000 results
+    // while strictly respecting the 200-item per-request limit.
+    if (pinsOnly) {
+      const pageOffsets = [0, 200, 400, 600, 800]; // 5 pages of 200 = 1000 results
+      const fetchPromises = pageOffsets.map(offset => {
+        const pEndpoint = `/${DATASET_ID}/Listings?$top=200&$skip=${skip + offset}&$filter=${encodeURIComponent(filterQuery)}&$count=true${selectQuery}`;
+        return bridgeFetch(pEndpoint).catch(async (err) => {
+          // Fallback to Properties for each page if Listings fails
+          if (err.message.includes("404") || err.message.includes("Invalid resource")) {
+            const propEndpoint = `/${DATASET_ID}/Properties?$top=200&$skip=${skip + offset}&$filter=${encodeURIComponent(filterQuery)}&$count=true${selectQuery}`;
+            return bridgeFetch(propEndpoint);
           }
-        }
-      } else {
-        throw listingsError;
-      }
-    }
+          throw err;
+        });
+      });
 
-    const listingsFromQuery = data.value || data.bundle || [];
-
-    // If city was requested but we got 0 results (e.g. no new builds in last 5 years), try without YearBuilt
-    if (city && city.trim() && listingsFromQuery.length === 0) {
-      const fallbackFilterParts = [
-        "PropertyType eq 'Residential'",
-        "StandardStatus eq 'Active'",
-      ];
-      const fallbackCityFilter = buildCityFilter(city);
-      if (fallbackCityFilter) fallbackFilterParts.push(fallbackCityFilter);
-      const fallbackFilter = fallbackFilterParts.join(" and ");
-      const fallbackEndpoint = `/${DATASET_ID}/Listings?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(fallbackFilter)}&$count=true`;
+      const results = await Promise.all(fetchPromises);
+      data = results[0]; // Use first page for metadata (total count)
+      pinsData = results.flatMap(r => r.value || r.bundle || []);
+    } else {
       try {
-        const fallbackData = await bridgeFetch(fallbackEndpoint);
-        const fallbackListings = fallbackData.value || fallbackData.bundle || [];
-        if (fallbackListings.length > 0) {
-          data = fallbackData;
+        data = await bridgeFetch(endpoint);
+      } catch (listingsError) {
+        if (listingsError.message.includes("404") || listingsError.message.includes("Invalid resource")) {
+          endpoint = `/${DATASET_ID}/Properties?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(filterQuery)}&$count=true${selectQuery}`;
+          data = await bridgeFetch(endpoint);
+        } else if (listingsError.message.includes("400") || listingsError.message.includes("Bad Request")) {
+          // Simplified fallback for new developments
+          const simpleFilterParts = ["PropertyType eq 'Residential'", "StandardStatus eq 'Active'"];
+          const simpleCityFilter = buildCityFilter(city);
+          if (simpleCityFilter) simpleFilterParts.push(simpleCityFilter);
+          const simpleFilter = simpleFilterParts.join(" and ");
+          const simpleEndpoint = `/${DATASET_ID}/Listings?$top=${topLimit}&$skip=${skip}&$filter=${encodeURIComponent(simpleFilter)}&$count=true${selectQuery}`;
+          data = await bridgeFetch(simpleEndpoint);
+        } else {
+          throw listingsError;
         }
-      } catch (_) {
-        // Keep original (empty) data
       }
     }
 
-    // OData standard uses 'value' array, but some APIs use 'bundle'
-    const listings = (data.value || data.bundle || []).map((item) => ({
-      ListingId: item.ListingId,
-      Id: item.Id,
+    const total = Number(data["@odata.count"] || data["@count"] || data.total || 0);
 
-      ListPrice: item.ListPrice,
-      City: item.City,
-      Province: item.Province || item.StateOrProvince,
-      UnparsedAddress: item.UnparsedAddress,
-      StreetNumber: item.StreetNumber,
-      StreetName: item.StreetName,
-      YearBuilt: item.YearBuilt,
-      PropertySubType: item.PropertySubType,
-      PropertyType: item.PropertyType,
+    // If countOnly was requested, return immediately
+    if (countOnly) {
+      return Response.json({ total, listings: [] });
+    }
 
-      BedroomsTotal: item.BedroomsTotal,
-      BathroomsTotalInteger: item.BathroomsTotalInteger,
-      BathroomsTotal: item.BathroomsTotal,
+    const listingsFromAllPages = pinsOnly ? pinsData : (data.value || data.bundle || []);
+    const listings = listingsFromAllPages.map((item) => {
+      // Common fields
+      const base = {
+        ListingId: item.ListingId,
+        Id: item.Id,
+        ListPrice: item.ListPrice,
+        Latitude: item.Latitude || item.LatitudeDecimal,
+        Longitude: item.Longitude || item.LongitudeDecimal,
+        StandardStatus: item.StandardStatus,
+      };
 
-      // SQ FT
-      BuildingAreaTotal: item.BuildingAreaTotal,
-      LivingArea: item.LivingArea,
-      AboveGradeFinishedArea: item.AboveGradeFinishedArea,
+      if (pinsOnly) return base;
 
-      // Coordinates for map
-      Latitude: item.Latitude || item.LatitudeDecimal,
-      Longitude: item.Longitude || item.LongitudeDecimal,
-
-      // Additional details
-      PostalCode: item.PostalCode,
-      StandardStatus: item.StandardStatus,
-      Description: item.PublicRemarks || item.Remarks || item.LongDescription,
-
-      // Image
-      Image:
-        item.Media?.[0]?.MediaURL ||
-        item.Media?.[0]?.MediaURLThumb ||
-        item.Photos?.[0]?.Uri ||
-        item.PhotoUrl ||
-        null,
-      
-      // All images for gallery
-      Images: item.Media?.map(m => m.MediaURL || m.MediaURLThumb).filter(Boolean) ||
-              item.Photos?.map(p => p.PhotoUrl || p.Uri).filter(Boolean) ||
-              (item.PhotoUrl ? [item.PhotoUrl] : []),
-    }));
+      // Full details for sidebar
+      return {
+        ...base,
+        City: item.City,
+        Province: item.Province || item.StateOrProvince,
+        UnparsedAddress: item.UnparsedAddress,
+        StreetNumber: item.StreetNumber,
+        StreetName: item.StreetName,
+        YearBuilt: item.YearBuilt,
+        PropertySubType: item.PropertySubType,
+        PropertyType: item.PropertyType,
+        BedroomsTotal: item.BedroomsTotal,
+        BathroomsTotalInteger: item.BathroomsTotalInteger,
+        BathroomsTotal: item.BathroomsTotal,
+        BuildingAreaTotal: item.BuildingAreaTotal,
+        LivingArea: item.LivingArea,
+        AboveGradeFinishedArea: item.AboveGradeFinishedArea,
+        PostalCode: item.PostalCode,
+        Description: item.PublicRemarks || item.Remarks || item.LongDescription,
+        Image:
+          item.Media?.[0]?.MediaURL ||
+          item.Media?.[0]?.MediaURLThumb ||
+          item.Photos?.[0]?.Uri ||
+          item.PhotoUrl ||
+          null,
+        Images: item.Media?.map(m => m.MediaURL || m.MediaURLThumb).filter(Boolean) ||
+                item.Photos?.map(p => p.PhotoUrl || p.Uri).filter(Boolean) ||
+                (item.PhotoUrl ? [item.PhotoUrl] : []),
+      };
+    });
 
     // OData standard: @odata.count contains total count
-    const total = data["@odata.count"] || data["@count"] || data.total || listings.length;
-
     return Response.json(
       { listings, total },
       {
